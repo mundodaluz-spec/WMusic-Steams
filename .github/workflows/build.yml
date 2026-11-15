@@ -82,7 +82,8 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then EXE="dist/WMusic Steams/WMusic Steams.exe"; else EXE="dist/WMusic Steams.app/Contents/MacOS/WMusic Steams"; fi
           mkdir -p saida
-          timeout 1500 "$EXE" --processar teste.mp4 --saida saida --resultado r.json --rapido --idioma ${{ matrix.idioma }} --log log.txt || true
+          T=""; command -v timeout >/dev/null && T="timeout 1500"
+          $T "$EXE" --processar teste.mp4 --saida saida --resultado r.json --rapido --idioma ${{ matrix.idioma }} --log log.txt || true
           cat log.txt || true
           cat log.txt.pilha || true
           python tests/conferir_ci.py r.json --com-letra
@@ -94,7 +95,7 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then
             cp LEIA-ME.md "dist/WMusic Steams/LEIA-ME.txt"
-            cd dist && 7z a -tzip "../WMusic-Steams-Windows.zip" "WMusic Steams" > /dev/null
+            (cd dist && 7z a -tzip "../WMusic-Steams-Windows.zip" "WMusic Steams" > /dev/null)
           else
             mkdir -p dmg && cp -R "dist/WMusic Steams.app" dmg/ && ln -s /Applications dmg/Aplicativos && cp LEIA-ME.md dmg/LEIA-ME.txt
             hdiutil create -volname "WMusic Steams" -srcfolder dmg -ov -format UDZO "WMusic-Steams-${{ matrix.nome }}.dmg"

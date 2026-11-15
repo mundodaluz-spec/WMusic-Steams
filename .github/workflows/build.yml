@@ -68,7 +68,7 @@ jobs:
             --collect-all audio_separator --collect-all faster_whisper --collect-all ctranslate2 \
             --collect-all tokenizers --collect-all onnxruntime --collect-data librosa \
             --collect-all _sounddevice_data --collect-all diffq --collect-all julius \
-            --collect-submodules wmsteams --hidden-import sounddevice --collect-all rotary_embedding_torch --collect-submodules beartype --collect-submodules einops --collect-submodules ml_collections --collect-submodules aiohttp --collect-submodules qrcode \
+            --collect-submodules wmsteams --hidden-import sounddevice --collect-all rotary_embedding_torch --collect-all soxr --collect-submodules beartype --collect-submodules einops --collect-submodules ml_collections --collect-submodules aiohttp --collect-submodules qrcode \
             --exclude-module tkinter --exclude-module matplotlib --exclude-module IPython --exclude-module pkg_resources --exclude-module samplerate \
             wmusic_steams.py
           du -sh dist/*

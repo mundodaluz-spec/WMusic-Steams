@@ -128,6 +128,21 @@ def _preparar_biblioteca():
     # desligado, para cada stem manter o ganho exato (e a soma fechar).
     from audio_separator.separator import common_separator as _cs
     _cs.spec_utils.normalize = lambda wave, max_peak=1.0, min_peak=None: wave
+    # O modelo de sopros (VR) reamostra internamente com a biblioteca "samplerate", que não
+    # tem versão certa para Mac M e não vai no pacote: troca por reamostragem polifásica/soxr.
+    su = _cs.spec_utils
+    su.wav_resolution = "polyphase"
+    su.wav_resolution_float_resampling = "polyphase"
+    import librosa
+    if not getattr(librosa.resample, "_wm", False):
+        orig = librosa.resample
+
+        def resample(y, *a, res_type="soxr_hq", **k):
+            if isinstance(res_type, str) and res_type.startswith(("sinc", "linear", "zero")):
+                res_type = "soxr_hq"
+            return orig(y, *a, res_type=res_type, **k)
+        resample._wm = True
+        librosa.resample = resample
     return Separator
 
 

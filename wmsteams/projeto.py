@@ -18,6 +18,8 @@ VERSAO = "1.0.0"
 NOMES_TELA = {
     "voz": "Voz", "bateria": "Bateria", "baixo": "Baixo", "guitarra": "Guitarra",
     "teclas": "Teclas", "outros": "Outros", "instrumental": "Instrumental",
+    "backs": "Backs", "sopros": "Sopros", "bumbo": "Bumbo", "caixa": "Caixa", "tons": "Tons",
+    "chimbal": "Chimbal", "pratos": "Pratos",
     "pad": "Pad", "original": "Original",
 }
 
@@ -206,9 +208,12 @@ def processar(
     modelo: str | None = None,
     progresso: Callable[[str, float], None] | None = None,
     pasta_destino: str | None = None,
+    backs: bool = True,
+    sopros: bool = True,
+    bateria_pecas: bool = False,
 ) -> dict:
     from .decode import ler_audio
-    from .separate import separar, MODELO_6
+    from .separate import separar
     from .chords import detectar
     from .pad import gerar_pad
 
@@ -231,7 +236,8 @@ def processar(
         return lambda m, f: p(m, a + (b - a) * f)
 
     gravar_wav_float(os.path.join(pasta, "original.wav"), audio, taxa)
-    stems, rel = separar(audio, taxa, pasta_modelos_separacao(), modelo=modelo or MODELO_6,
+    stems, rel = separar(audio, taxa, pasta_modelos_separacao(), modelo=modelo,
+                         backs=backs, sopros=sopros, bateria_pecas=bateria_pecas,
                          qualidade=qualidade, progresso=faixa(0.03, 0.75))
     p("Gravando os stems", 0.76)
     for k_, v in stems.items():

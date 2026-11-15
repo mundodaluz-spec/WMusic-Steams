@@ -80,7 +80,8 @@ def _modelos():
 
 
 def detectar(stems: dict[str, np.ndarray], taxa: int) -> dict:
-    harm = [v for k, v in stems.items() if k not in ("bateria", "voz")]
+    sem_altura = ("bateria", "bumbo", "caixa", "tons", "chimbal", "pratos", "voz", "backs")
+    harm = [v for k, v in stems.items() if k not in sem_altura]
     if not harm:
         harm = list(stems.values())
     mix = sum(harm).mean(axis=1)

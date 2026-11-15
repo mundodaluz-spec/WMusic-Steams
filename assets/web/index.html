@@ -154,8 +154,8 @@ nav button.ativa{color:#ff3b3b}
 </div></div>
 <script>
 const $=s=>document.querySelector(s);
-const CORES={voz:"#F0353A",bateria:"#F2E3CF",baixo:"#F2A12E",guitarra:"#E6C27A",teclas:"#8EC5EA",outros:"#A99BF0",instrumental:"#E6C27A",pad:"#6FE0A8",smpte:"#7FD7FF"};
-const NOMES={voz:"Voz",bateria:"Bateria",baixo:"Baixo",guitarra:"Guitarra",teclas:"Teclas",outros:"Outros",instrumental:"Instrumental",pad:"Pad",smpte:"SMPTE"};
+const CORES={voz:"#F0353A",bateria:"#F2E3CF",baixo:"#F2A12E",guitarra:"#E6C27A",teclas:"#8EC5EA",outros:"#A99BF0",instrumental:"#E6C27A",pad:"#6FE0A8",smpte:"#7FD7FF",backs:"#FF8A7A",sopros:"#F5D547",bumbo:"#EDE1D0",caixa:"#E2D3BF",tons:"#D6C5AE",chimbal:"#CBB89E",pratos:"#BFAB8F"};
+const NOMES={voz:"Voz",bateria:"Bateria",baixo:"Baixo",guitarra:"Guitarra",teclas:"Teclas",outros:"Outros",instrumental:"Instrumental",pad:"Pad",smpte:"SMPTE",backs:"Backs",sopros:"Sopros",bumbo:"Bumbo",caixa:"Caixa",tons:"Tons",chimbal:"Chimbal",pratos:"Pratos"};
 let ws,P=null,E=null,bib=[],controle=false,offset=0,melhorRtt=1e9,pinTxt="";
 function tempo(s){s=Math.max(0,s);const m=Math.floor(s/60);return m+":"+(s-m*60).toFixed(1).padStart(4,"0")}
 function agoraServ(){return Date.now()+offset}

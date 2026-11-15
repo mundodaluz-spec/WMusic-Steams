@@ -25,6 +25,8 @@ CORES = {
     "voz": "#F0353A", "bateria": "#F2E3CF", "baixo": "#F2A12E", "guitarra": "#E6C27A",
     "teclas": "#8EC5EA", "outros": "#A99BF0", "instrumental": "#E6C27A", "pad": "#6FE0A8",
     "smpte": "#7FD7FF", "original": "#9a938c",
+    "backs": "#FF8A7A", "sopros": "#F5D547", "bumbo": "#EDE1D0", "caixa": "#E2D3BF", "tons": "#D6C5AE",
+    "chimbal": "#CBB89E", "pratos": "#BFAB8F",
 }
 
 
@@ -237,9 +239,15 @@ class DialogoNova(DialogoWM):
         self.setMinimumWidth(720)
         self.arquivo = arquivo
         grade = QGridLayout(); grade.setHorizontalSpacing(24); grade.setVerticalSpacing(12)
-        self.qual = QComboBox(); self.qual.addItems(["Alta (mais lenta)", "Rápida"])
+        self.qual = QComboBox(); self.qual.addItems(["Alta: voz RoFormer + 6 stems (mais lenta)", "Rápida: só 6 stems"])
         self.idioma = QComboBox(); self.idioma.addItems(["Português", "Inglês", "Espanhol", "Detectar"])
         self.letra = QCheckBox("Escrever a letra"); self.letra.setChecked(True); self.letra.setFont(fonte(16, QFont.Medium))
+        cfg = pj.ler_config().get("separacao", {})
+        self.backs = QCheckBox("Separar voz principal e backs"); self.backs.setChecked(cfg.get("backs", True))
+        self.sopros = QCheckBox("Procurar sopros e metais"); self.sopros.setChecked(cfg.get("sopros", True))
+        self.pecas = QCheckBox("Bateria por peça (bumbo, caixa, tons, chimbal, pratos)"); self.pecas.setChecked(cfg.get("bateria_pecas", False))
+        for c in (self.backs, self.sopros, self.pecas):
+            c.setFont(fonte(15, QFont.Medium))
         self.timbre = QComboBox(); self.timbre.addItems(["Quente", "Brilhante", "Suave"])
         for c in (self.qual, self.idioma, self.timbre):
             c.setMinimumHeight(40); c.setFont(fonte(16, QFont.Medium))
@@ -250,6 +258,15 @@ class DialogoNova(DialogoWM):
         grade.addWidget(self.letra, 2, 1)
         grade.addWidget(RotuloIcone("teclado", "Timbre do pad"), 3, 0)
         grade.addWidget(self.timbre, 3, 1)
+        grade.addWidget(RotuloIcone("mais", "Canais extras"), 4, 0, Qt.AlignTop)
+        extras = QVBoxLayout(); extras.setSpacing(6)
+        for c in (self.backs, self.sopros, self.pecas):
+            extras.addWidget(c)
+        nota = QLabel("Canal que a música não tiver (ex.: sem sopros) nem aparece. Os modelos extras "
+                      "são baixados na primeira vez que forem usados.")
+        nota.setWordWrap(True); nota.setFont(fonte(12)); nota.setStyleSheet(f"color:{CINZA};")
+        extras.addWidget(nota)
+        grade.addLayout(extras, 4, 1)
         grade.setColumnStretch(1, 1)
         self.corpo.addLayout(grade)
         self.dica = QPlainTextEdit(); self.dica.setPlaceholderText(
@@ -260,12 +277,18 @@ class DialogoNova(DialogoWM):
         no = Botao("Cancelar", tam_fonte=17, peso=QFont.Medium); no.setFixedSize(160, 52)
         self.rodape.lay.addStretch(); self.rodape.lay.addWidget(ok); self.rodape.lay.addWidget(no)
         ok.clicked.connect(self.accept); no.clicked.connect(self.reject)
+        self.dica.setMinimumHeight(110)
+        self.layout().activate()
+        self.setMinimumHeight(self.sizeHint().height())
+        self.resize(max(self.width(), 720), self.sizeHint().height())
 
     def opcoes(self) -> dict:
         idi = {0: "pt", 1: "en", 2: "es", 3: None}[self.idioma.currentIndex()]
+        sep = {"backs": self.backs.isChecked(), "sopros": self.sopros.isChecked(), "bateria_pecas": self.pecas.isChecked()}
+        pj.gravar_config({"separacao": sep})
         return {"qualidade": "alta" if self.qual.currentIndex() == 0 else "rapida", "idioma": idi,
                 "fazer_letra": self.letra.isChecked(), "timbre_pad": self.timbre.currentText(),
-                "dica_letra": self.dica.toPlainText().strip() or None}
+                "dica_letra": self.dica.toPlainText().strip() or None, **sep}
 
 
 class DialogoProgresso(DialogoWM):

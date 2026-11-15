@@ -41,6 +41,9 @@ def cli(argv) -> int:
     ap.add_argument("--sem-letra", action="store_true")
     ap.add_argument("--modelo")
     ap.add_argument("--idioma", default="pt")
+    ap.add_argument("--sem-backs", action="store_true")
+    ap.add_argument("--sem-sopros", action="store_true")
+    ap.add_argument("--bateria-pecas", action="store_true")
     ap.add_argument("--captura", nargs=2, metavar=("PROJETO", "IMAGEM"))
     ap.add_argument("--log")
     a = ap.parse_args(argv)
@@ -69,6 +72,7 @@ def cli(argv) -> int:
     try:
         p = pj.processar(a.processar, qualidade="rapida" if a.rapido else "alta", idioma=a.idioma,
                          fazer_letra=not a.sem_letra, modelo=a.modelo, pasta_destino=a.saida,
+                         backs=not a.sem_backs, sopros=not a.sem_sopros, bateria_pecas=a.bateria_pecas,
                          progresso=lambda m, f: _say(f"PROGRESSO {int(f*100):3d} {m}"))
         nulo = pj.conferir_fase(p)
         resultado = {"ok": nulo < -90, "pasta": p["pasta"], "trilhas": p["trilhas"], "tom": p["tom"],

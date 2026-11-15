@@ -68,7 +68,7 @@ jobs:
             --collect-all audio_separator --collect-all faster_whisper --collect-all ctranslate2 \
             --collect-all tokenizers --collect-all onnxruntime --collect-data librosa \
             --collect-all _sounddevice_data --collect-all diffq --collect-all julius \
-            --collect-submodules wmsteams --hidden-import sounddevice --collect-submodules aiohttp --collect-submodules qrcode \
+            --collect-submodules wmsteams --hidden-import sounddevice --collect-all rotary_embedding_torch --collect-submodules beartype --collect-submodules einops --collect-submodules ml_collections --collect-submodules aiohttp --collect-submodules qrcode \
             --exclude-module tkinter --exclude-module matplotlib --exclude-module IPython --exclude-module pkg_resources --exclude-module samplerate \
             wmusic_steams.py
           du -sh dist/*
@@ -90,10 +90,14 @@ jobs:
           cat log.txt || true
           cat log.txt.pilha || true
           python tests/conferir_ci.py r.json --com-letra
+          # Alta completa: voz RoFormer + backs + 6 stems + sopros + bateria por peça (baixa os modelos extras)
+          $T "$EXE" --processar teste.wav --saida saida_alta --resultado r_alta.json --sem-letra --bateria-pecas --log log_alta.txt || true
+          grep -v PROGRESSO log_alta.txt || true
+          python tests/conferir_ci.py r_alta.json
           "$EXE" --captura "$(python -c "import json;print(json.load(open('r.json'))['pasta'])")" captura.png
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: "teste-${{ matrix.nome }}", path: "r.json\ncaptura.png\nlog.txt\nlog.txt.pilha", retention-days: 14 }
+        with: { name: "teste-${{ matrix.nome }}", path: "r.json\nr_alta.json\ncaptura.png\nlog.txt\nlog.txt.pilha\nlog_alta.txt", retention-days: 14 }
       - name: Empacotar
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then

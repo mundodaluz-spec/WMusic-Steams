@@ -64,9 +64,9 @@ jobs:
             --add-data "assets${SEP}assets" --add-data "modelos${SEP}modelos" \
             --collect-all audio_separator --collect-all faster_whisper --collect-all ctranslate2 \
             --collect-all tokenizers --collect-all onnxruntime --collect-data librosa \
-            --collect-all _sounddevice_data --collect-all samplerate --collect-all diffq --collect-all julius \
+            --collect-all _sounddevice_data --collect-all diffq --collect-all julius \
             --collect-submodules wmsteams --hidden-import sounddevice \
-            --exclude-module tkinter --exclude-module matplotlib --exclude-module IPython \
+            --exclude-module tkinter --exclude-module matplotlib --exclude-module IPython --exclude-module pkg_resources --exclude-module samplerate \
             wmusic_steams.py
           du -sh dist/*
       - name: Música de teste
@@ -82,12 +82,14 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then EXE="dist/WMusic Steams/WMusic Steams.exe"; else EXE="dist/WMusic Steams.app/Contents/MacOS/WMusic Steams"; fi
           mkdir -p saida
-          "$EXE" --processar teste.mp4 --saida saida --resultado r.json --rapido --idioma ${{ matrix.idioma }} || true
+          timeout 1500 "$EXE" --processar teste.mp4 --saida saida --resultado r.json --rapido --idioma ${{ matrix.idioma }} --log log.txt || true
+          cat log.txt || true
+          cat log.txt.pilha || true
           python tests/conferir_ci.py r.json --com-letra
           "$EXE" --captura "$(python -c "import json;print(json.load(open('r.json'))['pasta'])")" captura.png
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: "teste-${{ matrix.nome }}", path: "r.json\ncaptura.png", retention-days: 14 }
+        with: { name: "teste-${{ matrix.nome }}", path: "r.json\ncaptura.png\nlog.txt\nlog.txt.pilha", retention-days: 14 }
       - name: Empacotar
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then

@@ -15,7 +15,16 @@ import os
 import sys
 
 
+_LOG = None
+
+
 def _say(txt):
+    if _LOG:
+        try:
+            with open(_LOG, "a", encoding="utf-8") as f:
+                f.write(txt + "\n")
+        except Exception:
+            pass
     if sys.stdout is not None:
         try:
             print(txt, flush=True)
@@ -33,7 +42,14 @@ def cli(argv) -> int:
     ap.add_argument("--modelo")
     ap.add_argument("--idioma", default="pt")
     ap.add_argument("--captura", nargs=2, metavar=("PROJETO", "IMAGEM"))
+    ap.add_argument("--log")
     a = ap.parse_args(argv)
+    global _LOG
+    _LOG = a.log
+    if _LOG:
+        import faulthandler
+        _fh = open(_LOG + ".pilha", "w")
+        faulthandler.dump_traceback_later(600, repeat=False, file=_fh)  # mostra onde travou
 
     if a.captura:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")

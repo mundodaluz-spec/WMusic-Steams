@@ -1,0 +1,114 @@
+name: build
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Nome da release (ex.: v1.0.0). Vazio = só artefatos."
+        required: false
+        default: ""
+  push:
+    branches: [main]
+
+jobs:
+  modelo-letra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Converter o Whisper small (OpenAI, MIT) para CTranslate2 int8
+        run: |
+          pip install "ctranslate2>=4.4,<5" "transformers[torch]<5" --extra-index-url https://download.pytorch.org/whl/cpu
+          ct2-transformers-converter --model openai/whisper-small --output_dir letra --copy_files tokenizer.json preprocessor_config.json --quantization int8
+          ls -la letra
+      - uses: actions/upload-artifact@v4
+        with: { name: modelo-letra, path: letra, retention-days: 3 }
+
+  compilar:
+    needs: modelo-letra
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, nome: Windows, idioma: en }
+          - { os: macos-15, nome: macOS-AppleSilicon, idioma: en }
+    runs-on: ${{ matrix.os }}
+    defaults: { run: { shell: bash } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Dependências
+        run: |
+          python -m pip install --upgrade pip
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            pip install "torch>=2.3,<2.9" --index-url https://download.pytorch.org/whl/cpu
+          else
+            pip install "torch>=2.13,<3"
+          fi
+          pip install -r requirements.txt pyinstaller==6.16.0 imageio-ffmpeg
+      - uses: actions/download-artifact@v4
+        with: { name: modelo-letra, path: modelos/letra }
+      - name: Baixar o modelo de separação (6 stems)
+        run: |
+          python tests/baixar_modelos.py
+          ls -la modelos/separacao
+      - name: Testes (código-fonte)
+        run: |
+          python tests/test_motor.py
+          python tests/test_leitura.py
+      - name: Compilar
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then ICO=assets/icone.ico; SEP=";"; else ICO=assets/icone.icns; SEP=":"; fi
+          pyinstaller --noconfirm --windowed --name "WMusic Steams" --icon "$ICO" \
+            --osx-bundle-identifier com.wmusic.steams \
+            --add-data "assets${SEP}assets" --add-data "modelos${SEP}modelos" \
+            --collect-all audio_separator --collect-all faster_whisper --collect-all ctranslate2 \
+            --collect-all tokenizers --collect-all onnxruntime --collect-data librosa \
+            --collect-all _sounddevice_data --collect-all samplerate --collect-all diffq --collect-all julius \
+            --collect-submodules wmsteams --hidden-import sounddevice \
+            --exclude-module tkinter --exclude-module matplotlib --exclude-module IPython \
+            wmusic_steams.py
+          du -sh dist/*
+      - name: Música de teste
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            say "I will sing again. Your grace has found me. Hallelujah, hallelujah." -o fala.aiff
+            python -c "import soundfile as sf; a,r=sf.read('fala.aiff'); sf.write('fala.wav',a,r)"
+          else
+            powershell -Command "Add-Type -AssemblyName System.Speech; \$s=New-Object System.Speech.Synthesis.SpeechSynthesizer; \$s.SetOutputToWaveFile('fala.wav'); \$s.Speak('I will sing again. Your grace has found me. Hallelujah, hallelujah.'); \$s.Dispose()"
+          fi
+          python tests/montar_teste_ci.py
+      - name: Autoteste do programa compilado
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then EXE="dist/WMusic Steams/WMusic Steams.exe"; else EXE="dist/WMusic Steams.app/Contents/MacOS/WMusic Steams"; fi
+          mkdir -p saida
+          "$EXE" --processar teste.mp4 --saida saida --resultado r.json --rapido --idioma ${{ matrix.idioma }} || true
+          python tests/conferir_ci.py r.json --com-letra
+          "$EXE" --captura "$(python -c "import json;print(json.load(open('r.json'))['pasta'])")" captura.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: "teste-${{ matrix.nome }}", path: "r.json\ncaptura.png", retention-days: 14 }
+      - name: Empacotar
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp LEIA-ME.md "dist/WMusic Steams/LEIA-ME.txt"
+            cd dist && 7z a -tzip "../WMusic-Steams-Windows.zip" "WMusic Steams" > /dev/null
+          else
+            mkdir -p dmg && cp -R "dist/WMusic Steams.app" dmg/ && ln -s /Applications dmg/Aplicativos && cp LEIA-ME.md dmg/LEIA-ME.txt
+            hdiutil create -volname "WMusic Steams" -srcfolder dmg -ov -format UDZO "WMusic-Steams-${{ matrix.nome }}.dmg"
+          fi
+          ls -la WMusic-Steams-*
+      - uses: actions/upload-artifact@v4
+        with: { name: "WMusic-Steams-${{ matrix.nome }}", path: "WMusic-Steams-*.*", compression-level: 0 }
+
+  release:
+    needs: compilar
+    if: ${{ inputs.release != '' }}
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: arts, pattern: "WMusic-Steams-*", merge-multiple: true }
+      - run: ls -la arts
+      - uses: softprops/action-gh-release@v2
+        with: { tag_name: "${{ inputs.release }}", name: "WMusic Steams ${{ inputs.release }}", files: "arts/*", prerelease: true }

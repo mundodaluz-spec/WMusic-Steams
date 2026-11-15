@@ -1,0 +1,9 @@
+# torch vem antes (no Windows, versão CPU: pip install torch --index-url https://download.pytorch.org/whl/cpu)
+audio-separator[cpu]==0.48.0
+faster-whisper==1.1.1
+av>=12,<14
+PySide6-Essentials==6.8.1
+sounddevice>=0.5
+soundfile>=0.12
+numpy>=2
+scipy>=1.13

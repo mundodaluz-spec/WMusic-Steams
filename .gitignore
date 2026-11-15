@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+build/
+dist/
+modelos/
+*.spec
+*.wav
+*.mp4
+*.json.tmp

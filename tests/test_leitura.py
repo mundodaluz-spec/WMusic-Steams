@@ -19,7 +19,7 @@ def confere(nome, cond, extra=""):
     else: falhas += 1; print("FALHA", nome, extra)
 
 rng = np.random.default_rng(5)
-with tempfile.TemporaryDirectory() as d:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
     for sr in (44100, 48000):
         # ruído musical (banda limitada) + clique: a correlação mede o atraso exato
         x = np.zeros((sr * 4, 2), np.float32)

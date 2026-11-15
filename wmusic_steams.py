@@ -40,8 +40,8 @@ def cli(argv) -> int:
         from PySide6.QtWidgets import QApplication
         from wmsteams import ui, projeto as pj
         app = QApplication([sys.argv[0]])
-        app.setStyleSheet(ui.ESTILO)
-        j = ui.Janela(); j.resize(1280, 860); j.show()
+        ui.preparar_app(app)
+        j = ui.Janela(); j.resize(1530, 1030); j.show()
         j.abrir_projeto(pj.carregar(a.captura[0]))
         j.motor.ir_para(min(5.0, j.projeto["duracao"] / 2)); j.tique(); app.processEvents()
         ok = j.grab().save(a.captura[1])

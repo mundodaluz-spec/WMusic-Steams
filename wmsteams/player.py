@@ -74,6 +74,27 @@ class Motor:
             self.trilha("original").mute = True
         self._iniciar_prefetch()
 
+    def descarregar(self) -> None:
+        """Solta os arquivos (no Windows um arquivo aberto em memmap não pode ser trocado nem apagado)."""
+        self.parar()
+        self.fechar_stream()
+        self._prefetch_parar.set()
+        if self._prefetch:
+            self._prefetch.join(timeout=1)
+        with self._trava:
+            for t in self.trilhas:
+                mm = getattr(t.dados, "_mmap", None)
+                t.dados = None
+                try:
+                    if mm is not None:
+                        mm.close()
+                except Exception:
+                    pass
+            self.trilhas = []
+            self.n = 0
+        import gc
+        gc.collect()
+
     def trilha(self, chave: str) -> Trilha | None:
         return next((t for t in self.trilhas if t.chave == chave), None)
 
@@ -233,5 +254,4 @@ class Motor:
         self._prefetch.start()
 
     def fechar(self):
-        self._prefetch_parar.set()
-        self.fechar_stream()
+        self.descarregar()

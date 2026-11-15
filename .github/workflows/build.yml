@@ -45,7 +45,7 @@ jobs:
           else
             pip install "torch>=2.13,<3"
           fi
-          pip install -r requirements.txt pyinstaller==6.16.0 imageio-ffmpeg
+          pip install -r requirements.txt pyinstaller==6.16.0 imageio-ffmpeg "setuptools<80"
       - uses: actions/download-artifact@v4
         with: { name: modelo-letra, path: modelos/letra }
       - name: Baixar o modelo de separação (6 stems)

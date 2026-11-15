@@ -31,10 +31,10 @@ if __name__ == "__main__":
     p = projeto_demo(base, "/tmp/proj_demo")
     from PySide6.QtWidgets import QApplication
     from wmsteams import ui
-    app = QApplication(sys.argv); app.setStyleSheet(ui.ESTILO)
-    j = ui.Janela(); j.resize(1280, 860); j.show()
+    app = QApplication(sys.argv); ui.preparar_app(app)
+    j = ui.Janela(); j.resize(1530, 1030); j.show()
     j.abrir_projeto(p)
-    j.faixas[0].s.setChecked(False); j.faixas[3].m.setChecked(True); j.faixas[6].fader.setValue(-60)
+    j.faixas[0].s.setChecked(False); j.faixas[3].m.setChecked(True); j.faixas[6].fader.definir(-6.0, True)
     j.motor.ir_para(4.5); j.onda.loop_s = (2.4, 7.2)
     for t in j.motor.trilhas: t.pico = 0.3 + 0.5 * np.random.rand()
     j.motor.tocando = False

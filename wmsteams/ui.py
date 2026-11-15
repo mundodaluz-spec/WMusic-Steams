@@ -1,4 +1,4 @@
-"""Interface do WMusic Steams (PySide6)."""
+"""Interface do WMusic Steams (PySide6), no visual WMusic de metal escovado."""
 from __future__ import annotations
 
 import os
@@ -7,58 +7,24 @@ import sys
 import traceback
 
 import numpy as np
-from PySide6.QtCore import Qt, QThread, QTimer, Signal, QRectF, QPointF, QSize
-from PySide6.QtGui import (QAction, QColor, QFont, QIcon, QKeySequence, QPainter, QPainterPath,
-                           QPen, QPixmap, QShortcut, QFontMetricsF)
-from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
-                               QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QListWidget,
-                               QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit,
-                               QProgressBar, QPushButton, QScrollArea, QSlider, QSizePolicy,
-                               QVBoxLayout, QWidget, QDial)
+from PySide6.QtCore import Qt, QThread, QTimer, Signal, QRectF, QPointF
+from PySide6.QtGui import (QColor, QFont, QIcon, QKeySequence, QPainter, QPen, QShortcut,
+                           QFontMetricsF, QLinearGradient, QBrush, QPainterPath)
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFrame,
+                               QGridLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
+                               QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar, QScrollArea,
+                               QVBoxLayout, QWidget)
 
 from . import projeto as pj
+from . import skin as sk
 from .player import Motor
-
-PRETO = "#0c0c0c"
-PAINEL = "#151515"
-PAINEL2 = "#1d1d1d"
-CREME = "#F2E3CF"
-VERMELHO = "#E1262C"
-CINZA = "#8b8580"
+from .skin import CREME, VERMELHO, CINZA, Botao, fonte, pix
 
 CORES = {
-    "voz": "#E1262C", "bateria": "#F2E3CF", "baixo": "#D98E3B", "guitarra": "#C9B27C",
-    "teclas": "#8FB3C9", "outros": "#9C8FC9", "instrumental": "#C9B27C", "pad": "#6FC9A4",
-    "original": "#8b8580",
+    "voz": "#F0353A", "bateria": "#F2E3CF", "baixo": "#F2A12E", "guitarra": "#E6C27A",
+    "teclas": "#8EC5EA", "outros": "#A99BF0", "instrumental": "#E6C27A", "pad": "#6FE0A8",
+    "original": "#9a938c",
 }
-
-ESTILO = f"""
-* {{ font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial; color: {CREME}; }}
-QMainWindow, QDialog {{ background: {PRETO}; }}
-QWidget#painel {{ background: {PAINEL}; border-radius: 10px; }}
-QLabel#sub {{ color: {CINZA}; }}
-QPushButton {{ background: {PAINEL2}; border: 1px solid #2a2a2a; border-radius: 8px; padding: 7px 14px; }}
-QPushButton:hover {{ border-color: {CREME}; }}
-QPushButton:checked {{ background: {VERMELHO}; border-color: {VERMELHO}; color: white; }}
-QPushButton#principal {{ background: {VERMELHO}; border-color: {VERMELHO}; color: white; font-weight: 600; }}
-QPushButton#mini {{ padding: 3px 0px; min-width: 28px; max-width: 28px; font-weight: 700; border-radius: 6px; }}
-QPushButton#mini:checked {{ background: {VERMELHO}; }}
-QPushButton#solo:checked {{ background: #E8B23A; border-color: #E8B23A; color: #111; }}
-QComboBox, QPlainTextEdit, QListWidget {{ background: {PAINEL2}; border: 1px solid #2a2a2a; border-radius: 6px; padding: 4px 8px; }}
-QComboBox QAbstractItemView {{ background: {PAINEL2}; selection-background-color: {VERMELHO}; }}
-QProgressBar {{ background: {PAINEL2}; border: none; border-radius: 5px; height: 10px; text-align: center; }}
-QProgressBar::chunk {{ background: {VERMELHO}; border-radius: 5px; }}
-QSlider::groove:vertical {{ background: #262626; width: 6px; border-radius: 3px; }}
-QSlider::handle:vertical {{ background: {CREME}; height: 18px; margin: 0 -9px; border-radius: 4px; }}
-QSlider::groove:horizontal {{ background: #262626; height: 6px; border-radius: 3px; }}
-QSlider::handle:horizontal {{ background: {CREME}; width: 14px; margin: -5px 0; border-radius: 4px; }}
-QScrollArea {{ border: none; background: transparent; }}
-QCheckBox::indicator {{ width: 16px; height: 16px; }}
-"""
-
-
-def recurso(*partes) -> str:
-    return os.path.join(pj.pasta_recursos(), *partes)
 
 
 def tempo_txt(s: float) -> str:
@@ -69,6 +35,169 @@ def tempo_txt(s: float) -> str:
 
 def db_para_lin(db: float) -> float:
     return 0.0 if db <= -60 else 10 ** (db / 20)
+
+
+def abrir_no_sistema(caminho: str):
+    import subprocess
+    if sys.platform == "win32":
+        os.startfile(caminho)  # noqa
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", caminho])
+    else:
+        subprocess.Popen(["xdg-open", caminho])
+
+
+# ===================================================================== peças comuns
+
+class Fundo(QWidget):
+    def paintEvent(self, e):
+        p = QPainter(self)
+        sk.pintar_fundo(p, QRectF(self.rect()), 60)
+
+
+class Logo(QWidget):
+    """Logo WMusic (fone + Music) | STEAMS (ou outro título), como no cabeçalho da arte."""
+
+    def __init__(self, altura=46, com_steams=True, titulo: str | None = None, tam_titulo=16, espac=6.0, peso=QFont.DemiBold):
+        super().__init__()
+        self.altura, self.com_steams, self.titulo = altura, com_steams, titulo
+        self.tam_titulo, self.espac, self.peso = tam_titulo, espac, peso
+        self.icone = None
+        pm = pix("logo-horizontal.png")
+        self.lw = pm.width() * altura / pm.height() if not pm.isNull() else 100
+        self.setFixedHeight(altura + 8)
+        self.setFixedWidth(int(self._largura()))
+
+    def _fonte(self):
+        if self.titulo:
+            return fonte(self.tam_titulo, self.peso, self.espac)
+        return fonte(22, QFont.ExtraBold, 7.0)
+
+    def _largura(self):
+        w = self.lw + 26
+        if self.com_steams or self.titulo:
+            w += QFontMetricsF(self._fonte()).horizontalAdvance(self.titulo or "STEAMS") + 14 + (34 if self.icone else 0)
+        return w
+
+    def definir_icone(self, nome):
+        self.icone = nome
+        self.setFixedWidth(int(self._largura()))
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
+        pm = pix("logo-horizontal.png")
+        h = self.altura
+        y = (self.height() - h) / 2
+        if not pm.isNull():
+            p.drawPixmap(QRectF(0, y, self.lw, h), pm, QRectF(pm.rect()))
+        x = self.lw + 12
+        g = QLinearGradient(QPointF(x, y), QPointF(x, y + h))
+        g.setColorAt(0, QColor(225, 38, 44, 0)); g.setColorAt(0.5, QColor(225, 38, 44, 255)); g.setColorAt(1, QColor(225, 38, 44, 0))
+        p.setPen(QPen(QBrush(g), 1.6))
+        p.drawLine(QPointF(x, y + 2), QPointF(x, y + h - 2))
+        x += 14
+        if self.icone:
+            ic = sk.icone_pix(self.icone, CREME, 26)
+            p.drawPixmap(QRectF(x, self.height() / 2 - 13, 26, 26), ic, QRectF(ic.rect()))
+            x += 34
+        if self.com_steams or self.titulo:
+            txt = self.titulo or "STEAMS"
+            p.setFont(self._fonte())
+            gt = QLinearGradient(QPointF(0, y + h * 0.25), QPointF(0, y + h * 0.75))
+            gt.setColorAt(0, QColor("#ffffff")); gt.setColorAt(0.55, QColor("#ddd6cc")); gt.setColorAt(1, QColor("#a39d96"))
+            p.setPen(QColor(0, 0, 0, 160))
+            p.drawText(QRectF(x + 1, 1, 2000, self.height()), Qt.AlignVCenter | Qt.AlignLeft, txt)
+            p.setPen(QPen(QBrush(gt), 1))
+            p.drawText(QRectF(x, 0, 2000, self.height()), Qt.AlignVCenter | Qt.AlignLeft, txt)
+
+
+class Cabecalho(QWidget):
+    """Barra de metal do topo (janela principal e diálogos)."""
+
+    def __init__(self, altura=74):
+        super().__init__()
+        self.setFixedHeight(altura)
+        self.lay = QHBoxLayout(self)
+        self.lay.setContentsMargins(28, 6, 24, 8)
+        self.lay.setSpacing(12)
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect())
+        g = QLinearGradient(r.topLeft(), r.bottomLeft())
+        g.setColorAt(0, QColor("#303030")); g.setColorAt(0.45, QColor("#1c1c1c")); g.setColorAt(1, QColor("#101010"))
+        p.fillRect(r, g)
+        tex = pix("skin/metal.jpg")
+        if not tex.isNull():
+            p.setOpacity(0.45); p.drawPixmap(r, tex, QRectF(tex.rect())); p.setOpacity(1)
+        for cx, a in ((0.62, 55), (0.18, 25)):
+            gl = QLinearGradient(QPointF(r.width() * (cx - 0.12), 0), QPointF(r.width() * (cx + 0.12), 0))
+            gl.setColorAt(0, QColor(255, 255, 255, 0)); gl.setColorAt(0.5, QColor(255, 255, 255, a)); gl.setColorAt(1, QColor(255, 255, 255, 0))
+            p.fillRect(QRectF(0, 0, r.width(), r.height() * 0.55), gl)
+        p.setPen(QPen(QColor(255, 255, 255, 60), 1)); p.drawLine(r.topLeft() + QPointF(0, 0.5), r.topRight() + QPointF(0, 0.5))
+        p.setPen(QPen(QColor(0, 0, 0, 255), 2)); p.drawLine(r.bottomLeft() - QPointF(0, 1), r.bottomRight() - QPointF(0, 1))
+        y = r.bottom() - 2
+        gb = QLinearGradient(QPointF(0, y), QPointF(r.width(), y))
+        gb.setColorAt(0, QColor(225, 38, 44, 0)); gb.setColorAt(0.5, QColor(225, 38, 44, 200)); gb.setColorAt(1, QColor(225, 38, 44, 0))
+        p.setPen(QPen(QBrush(gb), 1.2)); p.drawLine(QPointF(0, y), QPointF(r.width(), y))
+        pm = pix("skin/parafuso.png")
+        if not pm.isNull():
+            for cx in (12, r.width() - 12):
+                p.drawPixmap(QRectF(cx - 6, 10, 12, 12), pm, QRectF(pm.rect()))
+
+
+class Rodape(QWidget):
+    def __init__(self, altura=78):
+        super().__init__()
+        self.setFixedHeight(altura)
+        self.lay = QHBoxLayout(self)
+        self.lay.setContentsMargins(24, 12, 24, 14)
+        self.lay.setSpacing(14)
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        r = QRectF(self.rect())
+        g = QLinearGradient(r.topLeft(), r.bottomLeft())
+        g.setColorAt(0, QColor("#1d1d1d")); g.setColorAt(1, QColor("#0f0f0f"))
+        p.fillRect(r, g)
+        tex = pix("skin/metal.jpg")
+        if not tex.isNull():
+            p.setOpacity(0.4); p.drawPixmap(r, tex, QRectF(tex.rect())); p.setOpacity(1)
+        gl = QLinearGradient(QPointF(r.width() * 0.45, 0), QPointF(r.width() * 0.75, 0))
+        gl.setColorAt(0, QColor(255, 255, 255, 0)); gl.setColorAt(0.5, QColor(255, 255, 255, 30)); gl.setColorAt(1, QColor(255, 255, 255, 0))
+        p.fillRect(r, gl)
+        gb = QLinearGradient(QPointF(0, 0), QPointF(r.width(), 0))
+        gb.setColorAt(0, QColor(225, 38, 44, 0)); gb.setColorAt(0.5, QColor(225, 38, 44, 170)); gb.setColorAt(1, QColor(225, 38, 44, 0))
+        p.setPen(QPen(QBrush(gb), 1.2)); p.drawLine(QPointF(0, 0.6), QPointF(r.width(), 0.6))
+
+
+class DialogoWM(QDialog):
+    """Diálogo com cabeçalho de metal (logo + título), corpo e rodapé."""
+
+    def __init__(self, parent, titulo: str, icone: str | None = None, titulo_grande=False, com_rodape=True):
+        super().__init__(parent)
+        raiz = QVBoxLayout(self); raiz.setContentsMargins(0, 0, 0, 0); raiz.setSpacing(0)
+        self.cab = Cabecalho(84)
+        if titulo_grande:
+            lg = Logo(50, com_steams=False, titulo=titulo, tam_titulo=27, espac=0.2, peso=QFont.Bold)
+        else:
+            lg = Logo(44, com_steams=False, titulo=titulo.upper(), tam_titulo=15, espac=6.0, peso=QFont.Medium)
+            if icone:
+                lg.definir_icone(icone)
+        self.cab.lay.addWidget(lg); self.cab.lay.addStretch()
+        raiz.addWidget(self.cab)
+        self.corpo = QVBoxLayout(); self.corpo.setContentsMargins(26, 22, 26, 20); self.corpo.setSpacing(14)
+        raiz.addLayout(self.corpo, 1)
+        self.rodape = Rodape() if com_rodape else None
+        if self.rodape:
+            raiz.addWidget(self.rodape)
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        sk.pintar_fundo(p, QRectF(self.rect()), 120)
 
 
 # ===================================================================== processamento
@@ -91,35 +220,45 @@ class Trabalho(QThread):
             self.erro.emit(str(e) or e.__class__.__name__)
 
 
-class DialogoNova(QDialog):
+class RotuloIcone(QWidget):
+    def __init__(self, icone: str, texto: str):
+        super().__init__()
+        h = QHBoxLayout(self); h.setContentsMargins(0, 0, 0, 0); h.setSpacing(12)
+        ic = QLabel(); ic.setPixmap(sk.icone_pix(icone, VERMELHO, 24)); ic.setFixedWidth(28)
+        t = QLabel(texto); t.setFont(fonte(16, QFont.Medium))
+        h.addWidget(ic); h.addWidget(t); h.addStretch()
+
+
+class DialogoNova(DialogoWM):
     def __init__(self, parent, arquivo: str):
-        super().__init__(parent)
+        super().__init__(parent, os.path.basename(arquivo), titulo_grande=True)
         self.setWindowTitle("Nova música")
-        self.setMinimumWidth(520)
+        self.setMinimumWidth(720)
         self.arquivo = arquivo
-        lay = QVBoxLayout(self)
-        t = QLabel(os.path.basename(arquivo))
-        t.setFont(QFont(t.font().family(), 14, QFont.Bold))
-        lay.addWidget(t)
-        f = QFormLayout()
+        grade = QGridLayout(); grade.setHorizontalSpacing(24); grade.setVerticalSpacing(12)
         self.qual = QComboBox(); self.qual.addItems(["Alta (mais lenta)", "Rápida"])
         self.idioma = QComboBox(); self.idioma.addItems(["Português", "Inglês", "Espanhol", "Detectar"])
-        self.letra = QCheckBox("Escrever a letra"); self.letra.setChecked(True)
+        self.letra = QCheckBox("Escrever a letra"); self.letra.setChecked(True); self.letra.setFont(fonte(16, QFont.Medium))
         self.timbre = QComboBox(); self.timbre.addItems(["Quente", "Brilhante", "Suave"])
+        for c in (self.qual, self.idioma, self.timbre):
+            c.setMinimumHeight(40); c.setFont(fonte(16, QFont.Medium))
+        grade.addWidget(RotuloIcone("onda", "Qualidade da separação"), 0, 0)
+        grade.addWidget(self.qual, 0, 1)
+        grade.addWidget(RotuloIcone("idioma", "Idioma da letra"), 1, 0)
+        grade.addWidget(self.idioma, 1, 1)
+        grade.addWidget(self.letra, 2, 1)
+        grade.addWidget(RotuloIcone("teclado", "Timbre do pad"), 3, 0)
+        grade.addWidget(self.timbre, 3, 1)
+        grade.setColumnStretch(1, 1)
+        self.corpo.addLayout(grade)
         self.dica = QPlainTextEdit(); self.dica.setPlaceholderText(
             "Opcional: cole aqui a letra da música. Ajuda a acertar as palavras.")
-        self.dica.setFixedHeight(110)
-        f.addRow("Qualidade da separação", self.qual)
-        f.addRow("Idioma da letra", self.idioma)
-        f.addRow("", self.letra)
-        f.addRow("Timbre do pad", self.timbre)
-        lay.addLayout(f)
-        lay.addWidget(self.dica)
-        bb = QDialogButtonBox()
-        ok = bb.addButton("Separar", QDialogButtonBox.AcceptRole); ok.setObjectName("principal")
-        bb.addButton("Cancelar", QDialogButtonBox.RejectRole)
-        bb.accepted.connect(self.accept); bb.rejected.connect(self.reject)
-        lay.addWidget(bb)
+        self.dica.setMinimumHeight(140)
+        self.corpo.addWidget(self.dica)
+        ok = Botao("Separar", tipo="vermelho", tam_fonte=18, peso=QFont.Bold); ok.setFixedSize(170, 52)
+        no = Botao("Cancelar", tam_fonte=17, peso=QFont.Medium); no.setFixedSize(160, 52)
+        self.rodape.lay.addStretch(); self.rodape.lay.addWidget(ok); self.rodape.lay.addWidget(no)
+        ok.clicked.connect(self.accept); no.clicked.connect(self.reject)
 
     def opcoes(self) -> dict:
         idi = {0: "pt", 1: "en", 2: "es", 3: None}[self.idioma.currentIndex()]
@@ -128,38 +267,40 @@ class DialogoNova(QDialog):
                 "dica_letra": self.dica.toPlainText().strip() or None}
 
 
-class DialogoProgresso(QDialog):
+class DialogoProgresso(DialogoWM):
     def __init__(self, parent, titulo: str):
-        super().__init__(parent)
+        super().__init__(parent, "Separação de instrumentos", com_rodape=False)
         self.setWindowTitle("Separando")
-        self.setMinimumWidth(480)
+        self.setMinimumWidth(720)
         self.setWindowFlag(Qt.WindowCloseButtonHint, False)
-        lay = QVBoxLayout(self)
-        t = QLabel(titulo); t.setFont(QFont(t.font().family(), 13, QFont.Bold)); lay.addWidget(t)
-        self.msg = QLabel("Começando…"); self.msg.setObjectName("sub"); lay.addWidget(self.msg)
+        self.corpo.setContentsMargins(32, 22, 32, 32)
+        t = QLabel(titulo); t.setFont(fonte(24, QFont.Bold)); self.corpo.addWidget(t)
+        self.msg = QLabel("Começando…"); self.msg.setFont(fonte(16)); self.msg.setStyleSheet(f"color:{CINZA};")
+        self.corpo.addWidget(self.msg)
         self.barra = QProgressBar(); self.barra.setRange(0, 1000); self.barra.setTextVisible(False)
-        lay.addWidget(self.barra)
+        self.corpo.addWidget(self.barra)
 
     def atualizar(self, msg: str, f: float):
         self.msg.setText(msg)
         self.barra.setValue(int(f * 1000))
 
 
-class DialogoBiblioteca(QDialog):
+class DialogoBiblioteca(DialogoWM):
     def __init__(self, parent):
-        super().__init__(parent)
+        super().__init__(parent, "Biblioteca", icone="banco")
         self.setWindowTitle("Biblioteca")
-        self.resize(560, 460)
+        self.resize(680, 600)
         self.escolhido = None
-        lay = QVBoxLayout(self)
         self.lista = QListWidget()
-        lay.addWidget(self.lista)
-        h = QHBoxLayout()
-        b_abrir = QPushButton("Abrir"); b_abrir.setObjectName("principal")
-        b_pasta = QPushButton("Mostrar pasta")
-        b_apagar = QPushButton("Apagar")
-        h.addWidget(b_abrir); h.addWidget(b_pasta); h.addStretch(); h.addWidget(b_apagar)
-        lay.addLayout(h)
+        self.corpo.addWidget(self.lista)
+        b_abrir = Botao("Abrir", "pasta", tipo="vermelho", tam_fonte=17, peso=QFont.Bold)
+        b_pasta = Botao("Mostrar pasta", "pasta", tam_fonte=16, peso=QFont.Medium)
+        b_apagar = Botao("Apagar", "lixo", tam_fonte=16, peso=QFont.Medium)
+        for b in (b_abrir, b_pasta, b_apagar):
+            b.setMinimumHeight(48)
+        b_abrir.setMinimumWidth(140)
+        self.rodape.lay.addWidget(b_abrir); self.rodape.lay.addWidget(b_pasta)
+        self.rodape.lay.addStretch(); self.rodape.lay.addWidget(b_apagar)
         b_abrir.clicked.connect(self.abrir)
         self.lista.itemDoubleClicked.connect(lambda *_: self.abrir())
         b_pasta.clicked.connect(self.mostrar)
@@ -169,9 +310,11 @@ class DialogoBiblioteca(QDialog):
     def recarregar(self):
         self.lista.clear()
         for p in pj.listar_biblioteca():
-            it = QListWidgetItem(f'{p.get("titulo")}   ·   {tempo_txt(p.get("duracao", 0))}   ·   tom {p.get("tom", "?")}')
+            it = QListWidgetItem(f'{p.get("titulo")}   •   {tempo_txt(p.get("duracao", 0))}   •   tom {p.get("tom", "?")}')
             it.setData(Qt.UserRole, p["pasta"])
             self.lista.addItem(it)
+        if self.lista.count():
+            self.lista.setCurrentRow(0)
 
     def _atual(self):
         it = self.lista.currentItem()
@@ -183,95 +326,68 @@ class DialogoBiblioteca(QDialog):
             self.accept()
 
     def mostrar(self):
-        p = self._atual() or pj.pasta_biblioteca()
-        abrir_no_sistema(p)
+        abrir_no_sistema(self._atual() or pj.pasta_biblioteca())
 
     def apagar(self):
         p = self._atual()
         if not p:
             return
         if QMessageBox.question(self, "Apagar", f"Apagar a pasta desta música?\n\n{p}\n\nNão dá para desfazer.") == QMessageBox.Yes:
+            jan = self.parent()
+            if jan is not None and getattr(jan, "projeto", None) and os.path.normcase(os.path.abspath(jan.projeto["pasta"])) == os.path.normcase(os.path.abspath(p)):
+                jan.fechar_projeto()
             shutil.rmtree(p, ignore_errors=True)
             self.recarregar()
 
 
-def abrir_no_sistema(caminho: str):
-    import subprocess
-    if sys.platform == "win32":
-        os.startfile(caminho)  # noqa
-    elif sys.platform == "darwin":
-        subprocess.Popen(["open", caminho])
-    else:
-        subprocess.Popen(["xdg-open", caminho])
-
-
-# ===================================================================== widgets
-
-class Medidor(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.valor = 0.0
-        self.setFixedWidth(8)
-
-    def paintEvent(self, e):
-        p = QPainter(self)
-        r = self.rect()
-        p.fillRect(r, QColor("#262626"))
-        db = 20 * np.log10(self.valor + 1e-9)
-        f = min(1.0, max(0.0, (db + 48) / 54))
-        h = int(r.height() * f)
-        cor = QColor(VERMELHO) if db > -1 else QColor(CREME)
-        p.fillRect(0, r.height() - h, r.width(), h, cor)
-
+# ===================================================================== janela: peças
 
 class Faixa(QWidget):
-    """Canal do mixer."""
+    """Canal do mixer: nome, M/S, pan, fader com régua e medidor, valor e saída."""
     mudou = Signal()
 
     def __init__(self, chave: str, nome: str, saidas: int):
         super().__init__()
         self.chave = chave
-        self.setObjectName("painel")
-        self.setAttribute(Qt.WA_StyledBackground, True)
-        self.setFixedWidth(104)
-        lay = QVBoxLayout(self); lay.setContentsMargins(8, 10, 8, 10); lay.setSpacing(6)
-        cor = CORES.get(chave, CREME)
-        tag = QLabel(nome); tag.setAlignment(Qt.AlignCenter)
-        tag.setStyleSheet(f"font-weight:700; color:{cor}; border-bottom: 3px solid {cor}; padding-bottom:4px;")
-        lay.addWidget(tag)
-        h = QHBoxLayout(); h.setSpacing(4)
-        self.m = QPushButton("M"); self.m.setObjectName("mini"); self.m.setCheckable(True)
-        self.s = QPushButton("S"); self.s.setObjectName("mini"); self.s.setCheckable(True)
-        self.s.setProperty("class", "solo"); self.s.setObjectName("solo")
-        self.s.setStyleSheet("padding:3px 0; min-width:28px; max-width:28px; font-weight:700; border-radius:6px;")
-        h.addWidget(self.m); h.addWidget(self.s)
+        self.setFixedWidth(156)
+        self.cor = CORES.get(chave, CREME)
+        self.nome = nome
+        lay = QVBoxLayout(self); lay.setContentsMargins(14, 44, 14, 20); lay.setSpacing(8)
+        h = QHBoxLayout(); h.setSpacing(10); h.addStretch()
+        self.m = Botao("M", tam_fonte=16, peso=QFont.Bold, ligado="vermelho"); self.m.setCheckable(True)
+        self.s = Botao("S", tam_fonte=16, peso=QFont.Bold, ligado="ambar"); self.s.setCheckable(True)
+        for b in (self.m, self.s):
+            b.setFixedSize(52, 40)
+        h.addWidget(self.m); h.addWidget(self.s); h.addStretch()
         lay.addLayout(h)
-        self.pan = QSlider(Qt.Horizontal); self.pan.setRange(-100, 100); self.pan.setValue(0)
-        self.pan.setToolTip("Pan (duplo clique = centro)")
-        hp = QHBoxLayout(); hp.setSpacing(4)
-        le, ld = QLabel("E"), QLabel("D")
-        for l in (le, ld): l.setObjectName("sub"); l.setStyleSheet("font-size:10px;")
-        hp.addWidget(le); hp.addWidget(self.pan, 1); hp.addWidget(ld)
-        lay.addLayout(hp)
-        h2 = QHBoxLayout(); h2.setSpacing(6)
-        self.fader = QSlider(Qt.Vertical); self.fader.setRange(-600, 60); self.fader.setValue(0)
-        self.fader.setMinimumHeight(150)
-        self.medidor = Medidor()
-        h2.addStretch(); h2.addWidget(self.fader); h2.addWidget(self.medidor); h2.addStretch()
-        lay.addLayout(h2, 1)
-        self.valor = QLabel("0.0 dB"); self.valor.setAlignment(Qt.AlignCenter); self.valor.setObjectName("sub")
+        self.pan = sk.Pan(); lay.addWidget(self.pan)
+        self.fader = sk.Fader(); lay.addWidget(self.fader, 1, Qt.AlignHCenter)
+        self.valor = QLabel("0.0 dB"); self.valor.setAlignment(Qt.AlignCenter); self.valor.setFont(fonte(16, QFont.Medium))
         lay.addWidget(self.valor)
-        self.saida = QComboBox()
+        self.saida = QComboBox(); self.saida.setObjectName("vermelha"); self.saida.setMinimumHeight(34)
+        self.saida.setFont(fonte(15, QFont.Medium))
         self.definir_saidas(saidas)
         self.saida.setToolTip("Saída da placa de som")
         lay.addWidget(self.saida)
         self.m.toggled.connect(lambda *_: self.mudou.emit())
         self.s.toggled.connect(lambda *_: self.mudou.emit())
-        self.pan.valueChanged.connect(lambda *_: self.mudou.emit())
-        self.fader.valueChanged.connect(self._fader)
+        self.pan.mudou.connect(lambda *_: self.mudou.emit())
+        self.fader.mudou.connect(self._fader)
         self.saida.currentIndexChanged.connect(lambda *_: self.mudou.emit())
-        self.fader.mouseDoubleClickEvent = lambda e: self.fader.setValue(0)
-        self.pan.mouseDoubleClickEvent = lambda e: self.pan.setValue(0)
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(4, 4, -4, -5)
+        sk.pintar_painel(p, r, 10, laterais_vermelhas=True)
+        p.save()
+        g = QLinearGradient(QPointF(r.center().x() - 36, 0), QPointF(r.center().x() + 36, 0))
+        g.setColorAt(0, QColor(255, 255, 255, 0)); g.setColorAt(0.5, QColor(255, 255, 255, 55)); g.setColorAt(1, QColor(255, 255, 255, 0))
+        p.setPen(QPen(QBrush(g), 1.4))
+        p.drawArc(QRectF(r.center().x() - 36, r.top() + 6, 72, 44), 30 * 16, 120 * 16)
+        p.restore()
+        p.setFont(fonte(19, QFont.Bold))
+        sk.texto_brilho(p, QRectF(r.left(), r.top() + 9, r.width(), 30), Qt.AlignCenter, self.nome, self.cor, 70)
 
     def definir_saidas(self, canais: int):
         atual = max(0, self.saida.currentIndex())
@@ -282,39 +398,37 @@ class Faixa(QWidget):
         self.saida.setCurrentIndex(min(atual, self.saida.count() - 1))
         self.saida.blockSignals(False)
 
-    def _fader(self, v):
-        db = v / 10
-        self.valor.setText("−∞" if db <= -60 else f"{db:+.1f} dB".replace("+0.0", "0.0"))
+    def _fader(self, db):
+        self.valor.setText("−∞" if db <= -60 else f"{db:+.1f} dB".replace("+0.0", "0.0").replace("-", "−"))
         self.mudou.emit()
 
     def aplicar(self, t):
-        t.volume = db_para_lin(self.fader.value() / 10)
-        t.pan = self.pan.value() / 100
+        t.volume = db_para_lin(self.fader.db)
+        t.pan = self.pan.valor
         t.mute = self.m.isChecked()
         t.solo = self.s.isChecked()
         t.saida = max(0, self.saida.currentIndex())
 
     def carregar(self, t):
-        for w in (self.m, self.s, self.pan, self.fader, self.saida):
+        for w in (self.m, self.s, self.saida):
             w.blockSignals(True)
         self.m.setChecked(t.mute); self.s.setChecked(t.solo)
-        self.pan.setValue(int(round(t.pan * 100)))
-        db = -60 if t.volume <= 0 else 20 * np.log10(t.volume)
-        self.fader.setValue(int(round(db * 10)))
+        self.pan.definir(t.pan)
+        self.fader.definir(-100 if t.volume <= 0 else 20 * np.log10(t.volume))
         self.saida.setCurrentIndex(min(t.saida, self.saida.count() - 1))
-        for w in (self.m, self.s, self.pan, self.fader, self.saida):
+        for w in (self.m, self.s, self.saida):
             w.blockSignals(False)
-        self._fader(self.fader.value())
+        self._fader(self.fader.db)
 
 
 class Onda(QWidget):
-    """Forma de onda da música, acordes em cima, cursor, clique para ir, arraste para loop."""
+    """Forma de onda, acordes em cima, cursor, clique para ir, arraste para loop."""
     ir = Signal(float)
     loop = Signal(object)
 
     def __init__(self):
         super().__init__()
-        self.setMinimumHeight(110)
+        self.setMinimumHeight(150)
         self.picos = None
         self.dur = 1.0
         self.pos = 0.0
@@ -327,46 +441,70 @@ class Onda(QWidget):
         self.loop_s = None
         self.update()
 
+    def _area(self):
+        return QRectF(self.rect()).adjusted(8, 6, -8, -8)
+
     def _x(self, s):
-        return s / self.dur * self.width()
+        a = self._area()
+        return a.left() + s / self.dur * a.width()
 
     def _s(self, x):
-        return max(0.0, min(self.dur, x / max(1, self.width()) * self.dur))
+        a = self._area()
+        return max(0.0, min(self.dur, (x - a.left()) / max(1, a.width()) * self.dur))
 
     def paintEvent(self, e):
         p = QPainter(self); p.setRenderHint(QPainter.Antialiasing)
-        w, h = self.width(), self.height()
-        p.fillRect(self.rect(), QColor(PAINEL))
-        topo = 22
+        a = self._area()
+        sk.pintar_painel(p, a.adjusted(-4, -2, 4, 2), 10, parafusos=False, fundo_escuro=True)
+        p.save()
+        cam = QPainterPath(); cam.addRoundedRect(a, 8, 8); p.setClipPath(cam)
+        topo = 32
         if self.loop_s:
-            a, b = self.loop_s
-            p.fillRect(QRectF(self._x(a), 0, self._x(b) - self._x(a), h), QColor(225, 38, 44, 45))
+            x0, x1 = self._x(self.loop_s[0]), self._x(self.loop_s[1])
+            p.fillRect(QRectF(x0, a.top(), x1 - x0, a.height()), QColor(225, 38, 44, 60))
+            p.setPen(QPen(QColor(225, 38, 44, 130), 1))
+            p.drawLine(QPointF(x0, a.top()), QPointF(x0, a.bottom())); p.drawLine(QPointF(x1, a.top()), QPointF(x1, a.bottom()))
         if self.picos is not None and len(self.picos):
-            meio = topo + (h - topo) / 2
-            amp = (h - topo) / 2 - 4
+            meio = a.top() + topo + (a.height() - topo) / 2
+            amp = (a.height() - topo) / 2 - 8
             n = len(self.picos)
             xp = self._x(self.pos)
+            w = int(a.width())
             for i in range(w):
+                x = a.left() + i
                 v = self.picos[min(n - 1, int(i / w * n))]
-                cor = QColor(CREME) if i <= xp else QColor("#4a4440")
+                if x <= xp:
+                    cor = QColor("#f3e6d2")
+                elif self.loop_s and self._x(self.loop_s[0]) <= x <= self._x(self.loop_s[1]):
+                    cor = QColor("#8a6a66")
+                else:
+                    cor = QColor("#5a5550")
                 p.setPen(cor)
-                p.drawLine(QPointF(i, meio - v * amp), QPointF(i, meio + v * amp))
-        p.setFont(QFont(self.font().family(), 9, QFont.Bold))
-        for a in self.acordes:
-            if a["nome"] == "N":
+                p.drawLine(QPointF(x, meio - v * amp), QPointF(x, meio + v * amp))
+        p.setFont(fonte(16, QFont.DemiBold))
+        for c in self.acordes:
+            if c["nome"] == "N":
                 continue
-            x0, x1 = self._x(a["t0"]), self._x(a["t1"])
-            p.setPen(QPen(QColor("#333"), 1)); p.drawLine(QPointF(x0, 0), QPointF(x0, topo))
-            if x1 - x0 > 22:
-                ativo = a["t0"] <= self.pos < a["t1"]
-                p.setPen(QColor(VERMELHO if ativo else CINZA))
-                p.drawText(QRectF(x0 + 3, 2, x1 - x0 - 4, topo - 4), Qt.AlignVCenter | Qt.AlignLeft, a["nome"])
-        p.setPen(QPen(QColor(VERMELHO), 2))
-        x = self._x(self.pos)
-        p.drawLine(QPointF(x, 0), QPointF(x, h))
+            x0, x1 = self._x(c["t0"]), self._x(c["t1"])
+            p.setPen(QPen(QColor(255, 255, 255, 30), 1)); p.drawLine(QPointF(x0, a.top()), QPointF(x0, a.top() + topo + 6))
+            if x1 - x0 > 24:
+                ativo = c["t0"] <= self.pos < c["t1"]
+                p.setPen(QColor(VERMELHO if ativo else "#d8cfc4"))
+                p.drawText(QRectF(x0 + 10, a.top() + 2, x1 - x0 - 10, topo), Qt.AlignVCenter | Qt.AlignLeft, c["nome"])
+        if self.picos is not None:
+            x = self._x(self.pos)
+            for w_, al in ((8, 35), (4, 80), (2, 255)):
+                cc = QColor(VERMELHO); cc.setAlpha(al)
+                p.setPen(QPen(cc, w_)); p.drawLine(QPointF(x, a.top()), QPointF(x, a.bottom()))
+        else:
+            for w_, al in ((5, 50), (2, 255)):
+                cc = QColor(VERMELHO); cc.setAlpha(al)
+                p.setPen(QPen(cc, w_)); p.drawLine(QPointF(a.left() + 3, a.top() + 4), QPointF(a.left() + 3, a.bottom() - 4))
+        p.restore()
 
     def mousePressEvent(self, e):
-        self._arraste = e.position().x()
+        if self.picos is not None:
+            self._arraste = e.position().x()
 
     def mouseMoveEvent(self, e):
         if self._arraste is not None and abs(e.position().x() - self._arraste) > 6:
@@ -385,22 +523,25 @@ class Onda(QWidget):
 
 
 class Letra(QWidget):
-    """Linha atual grande, palavra cantada acesa; linha anterior e próxima em cinza."""
+    """Linha atual grande com a palavra cantada acesa; anterior e próxima em cinza.
+    Sem música aberta, mostra a marca no centro (tela inicial)."""
 
     def __init__(self):
         super().__init__()
         self.linhas = []
         self.t = 0.0
-        self.setMinimumHeight(170)
+        self.setMinimumHeight(200)
         self.aviso = ""
+        self.vazio = True
 
     def definir(self, letra, aviso=None):
+        self.vazio = False
         self.linhas = (letra or {}).get("linhas", [])
         self.aviso = aviso or ("Sem letra nesta música." if not self.linhas else "")
         self.update()
 
     def _indice(self):
-        t = self.t + 0.15  # mostra a linha um pouquinho antes de começar
+        t = self.t + 0.15
         idx = -1
         for i, l in enumerate(self.linhas):
             if l["t0"] <= t:
@@ -409,44 +550,153 @@ class Letra(QWidget):
                 break
         return idx
 
+    def _arcos(self, p, r):
+        """Dois filetes vermelhos curvos, um no canto de cima à esquerda e outro embaixo à direita."""
+        p.save()
+        cam = QPainterPath(); cam.addRoundedRect(r, 12, 12); p.setClipPath(cam)
+        L, T, W, H = r.left(), r.top(), r.width(), r.height()
+        curvas = (((L - 2, T + 0.26 * H), (L + 0.05 * W, T + 0.02 * H), (L + 0.24 * W, T - 2)),
+                  ((r.right() + 2, T + 0.60 * H), (r.right() - 0.05 * W, r.bottom() - 0.05 * H), (L + 0.70 * W, r.bottom() + 2)))
+        for a, c, b in curvas:
+            cp = QPainterPath(QPointF(*a)); cp.quadTo(QPointF(*c), QPointF(*b))
+            for w_, al in ((12, 14), (6, 40), (2, 230)):
+                cor = QColor(VERMELHO); cor.setAlpha(al)
+                p.setPen(QPen(cor, w_, Qt.SolidLine, Qt.RoundCap)); p.setBrush(Qt.NoBrush)
+                p.drawPath(cp)
+        p.restore()
+
     def paintEvent(self, e):
-        p = QPainter(self); p.setRenderHint(QPainter.Antialiasing)
-        r = self.rect()
-        p.fillRect(r, QColor(PAINEL))
-        fam = self.font().family()
+        p = QPainter(self); p.setRenderHint(QPainter.Antialiasing); p.setRenderHint(QPainter.SmoothPixmapTransform)
+        r = QRectF(self.rect()).adjusted(4, 4, -4, -5)
+        sk.pintar_painel(p, r, 12, parafusos=False, brilho_vermelho=not self.vazio)
+        if self.vazio:
+            self._arcos(p, r.adjusted(2, 2, -2, -2))
+            pm = pix("logo-wmusic.png")
+            h = min(r.height() * 0.40, 240)
+            w = pm.width() * h / pm.height() if not pm.isNull() else 0
+            y = r.center().y() - h * 0.82
+            if not pm.isNull():
+                p.drawPixmap(QRectF(r.center().x() - w / 2, y, w, h), pm, QRectF(pm.rect()))
+            y += h + 10
+            f = fonte(min(48, r.height() * 0.085), QFont.ExtraBold, min(18, r.height() * 0.03))
+            p.setFont(f)
+            fm = QFontMetricsF(f)
+            tw = fm.horizontalAdvance("STEAMS")
+            gt = QLinearGradient(QPointF(0, y), QPointF(0, y + fm.height()))
+            gt.setColorAt(0, QColor("#ffffff")); gt.setColorAt(0.6, QColor("#d8d0c6")); gt.setColorAt(1, QColor("#8f8a84"))
+            p.setPen(QPen(QBrush(gt), 1))
+            p.drawText(QRectF(r.left(), y, r.width(), fm.height()), Qt.AlignHCenter | Qt.AlignVCenter, "STEAMS")
+            ly = y + fm.height() / 2
+            for x0, x1 in ((r.center().x() - tw / 2 - 160, r.center().x() - tw / 2 - 30),
+                           (r.center().x() + tw / 2 + 30, r.center().x() + tw / 2 + 160)):
+                g = QLinearGradient(QPointF(x0, ly), QPointF(x1, ly))
+                fora = x0 < r.center().x()
+                g.setColorAt(0, QColor(225, 38, 44, 0 if fora else 230)); g.setColorAt(1, QColor(225, 38, 44, 230 if fora else 0))
+                p.setPen(QPen(QBrush(g), 2)); p.drawLine(QPointF(x0, ly), QPointF(x1, ly))
+            p.setFont(fonte(min(28, r.height() * 0.048)))
+            p.setPen(QColor("#b9b1a8"))
+            p.drawText(QRectF(r.left(), y + fm.height() + 16, r.width(), 44), Qt.AlignHCenter | Qt.AlignTop, "Abra uma música para começar")
+            return
         if not self.linhas:
-            p.setPen(QColor(CINZA)); p.setFont(QFont(fam, 13))
+            p.setPen(QColor("#b9b1a8")); p.setFont(fonte(26))
             p.drawText(r, Qt.AlignCenter, self.aviso)
             return
         i = self._indice()
         h = r.height()
+
         def linha_simples(txt, y, tam, cor):
-            p.setFont(QFont(fam, tam)); p.setPen(QColor(cor))
-            p.drawText(QRectF(16, y, r.width() - 32, tam * 2.2), Qt.AlignHCenter | Qt.AlignVCenter, txt)
+            p.setFont(fonte(tam, QFont.Medium)); p.setPen(QColor(cor))
+            p.drawText(QRectF(r.left() + 20, r.top() + y, r.width() - 40, tam * 1.6), Qt.AlignHCenter | Qt.AlignVCenter, txt)
+
         if i - 1 >= 0:
-            linha_simples(self.linhas[i - 1]["texto"], h * 0.08, 13, "#5d5853")
+            linha_simples(self.linhas[i - 1]["texto"], h * 0.07, 23, "#b3aba2")
         if i + 1 < len(self.linhas):
-            linha_simples(self.linhas[i + 1]["texto"], h * 0.70, 15, CINZA)
+            linha_simples(self.linhas[i + 1]["texto"], h * 0.68, 25, "#c9c1b7")
         if i < 0:
-            linha_simples(self.linhas[0]["texto"], h * 0.36, 22, "#5d5853")
+            linha_simples(self.linhas[0]["texto"], h * 0.38, 28, "#8a837b")
             return
         atual = self.linhas[i]
-        tam = 24
-        f = QFont(fam, tam, QFont.Bold)
+        tam = 42
+        f = fonte(tam, QFont.Bold)
         fm = QFontMetricsF(f)
         palavras = atual["palavras"]
         larg = sum(fm.horizontalAdvance(w["w"] + " ") for w in palavras)
-        while larg > r.width() - 40 and tam > 12:
-            tam -= 1; f = QFont(fam, tam, QFont.Bold); fm = QFontMetricsF(f)
+        while larg > r.width() - 60 and tam > 16:
+            tam -= 1; f = fonte(tam, QFont.Bold); fm = QFontMetricsF(f)
             larg = sum(fm.horizontalAdvance(w["w"] + " ") for w in palavras)
         p.setFont(f)
-        x = (r.width() - larg) / 2
-        y = h * 0.36 + fm.ascent() + 6
+        x = r.left() + (r.width() - larg) / 2
+        y = r.top() + h * 0.34
         for w in palavras:
-            cantada = self.t + 0.05 >= w["t0"]
-            p.setPen(QColor(VERMELHO if cantada and self.t < atual["t1"] + 0.6 else CREME))
-            p.drawText(QPointF(x, y), w["w"])
+            cantada = self.t + 0.05 >= w["t0"] and self.t < atual["t1"] + 0.6
+            lw = fm.horizontalAdvance(w["w"])
+            rr = QRectF(x, y, lw + 6, fm.height())
+            if cantada:
+                sk.texto_brilho(p, rr, Qt.AlignLeft | Qt.AlignVCenter, w["w"], "#ff2b30", 150)
+            else:
+                p.setPen(QColor("#f6ead9")); p.drawText(rr, Qt.AlignLeft | Qt.AlignVCenter, w["w"])
             x += fm.horizontalAdvance(w["w"] + " ")
+
+
+class PainelAcorde(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setFixedWidth(276)
+        self.vazio = True
+        self.acorde, self.prox, self.tom = "–", "", ""
+        lay = QVBoxLayout(self); lay.setContentsMargins(26, 0, 22, 22); lay.addStretch()
+        h = QHBoxLayout()
+        lp = QLabel("Pad"); lp.setFont(fonte(16, QFont.Medium))
+        self.timbre = QComboBox(); self.timbre.addItems(["Quente", "Brilhante", "Suave"]); self.timbre.setObjectName("vermelha")
+        self.timbre.setMinimumHeight(38); self.timbre.setFont(fonte(16, QFont.Medium)); self.timbre.setFixedWidth(132)
+        h.addWidget(lp); h.addStretch(); h.addWidget(self.timbre)
+        lay.addLayout(h)
+
+    def paintEvent(self, e):
+        p = QPainter(self); p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(4, 4, -4, -5)
+        sk.pintar_painel(p, r, 12)
+        x = r.left() + 22
+        p.setFont(fonte(17, QFont.DemiBold, 0.5)); p.setPen(QColor(CREME))
+        p.drawText(QRectF(x, r.top() + 14, 200, 28), Qt.AlignLeft | Qt.AlignVCenter, "ACORDE")
+        if self.vazio:
+            g = QLinearGradient(QPointF(x, 0), QPointF(x + 90, 0))
+            g.setColorAt(0, QColor(225, 38, 44, 0)); g.setColorAt(0.4, QColor(225, 38, 44, 255)); g.setColorAt(1, QColor(225, 38, 44, 0))
+            p.setPen(QPen(QBrush(g), 2)); p.drawLine(QPointF(x, r.top() + 48), QPointF(x + 90, r.top() + 48))
+            p.setPen(Qt.NoPen); p.setBrush(QColor(VERMELHO)); p.drawRect(QRectF(x, r.top() + 90, 30, 7))
+            p.setPen(QPen(QColor(255, 255, 255, 30), 1)); p.drawLine(QPointF(x, r.bottom() - 80), QPointF(r.right() - 20, r.bottom() - 80))
+            return
+        p.setFont(fonte(62, QFont.Black))
+        sk.texto_brilho(p, QRectF(x, r.top() + 40, r.width() - 40, 74), Qt.AlignLeft | Qt.AlignVCenter, self.acorde, "#ff2b30", 120)
+        p.setFont(fonte(20)); p.setPen(QColor("#d8cfc4"))
+        p.drawText(QRectF(x, r.top() + 114, 230, 30), Qt.AlignLeft | Qt.AlignVCenter, self.prox)
+        p.setFont(fonte(16)); p.setPen(QColor(CINZA))
+        p.drawText(QRectF(x, r.top() + 146, 230, 24), Qt.AlignLeft | Qt.AlignVCenter, self.tom)
+
+
+class BarraTransporte(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setFixedHeight(86)
+        self.lay = QHBoxLayout(self); self.lay.setContentsMargins(22, 12, 22, 14); self.lay.setSpacing(14)
+
+    def paintEvent(self, e):
+        p = QPainter(self); p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(4, 4, -4, -5)
+        sk.pintar_painel(p, r, 10)
+        g = QLinearGradient(r.topLeft(), r.topRight())
+        g.setColorAt(0.3, QColor(255, 255, 255, 0)); g.setColorAt(0.5, QColor(255, 255, 255, 50)); g.setColorAt(0.7, QColor(255, 255, 255, 0))
+        p.setPen(QPen(QBrush(g), 1)); p.drawLine(QPointF(r.left() + 20, r.top() + 1.5), QPointF(r.right() - 20, r.top() + 1.5))
+
+
+class Separador(QWidget):
+    def __init__(self, altura=44):
+        super().__init__(); self.setFixedWidth(2); self.setFixedHeight(altura)
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.fillRect(QRectF(0, 0, 1, self.height()), QColor(0, 0, 0, 200))
+        p.fillRect(QRectF(1, 0, 1, self.height()), QColor(255, 255, 255, 28))
 
 
 # ===================================================================== janela
@@ -455,94 +705,109 @@ class Janela(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("WMusic Steams")
-        self.resize(1200, 820)
+        self.resize(1530, 1030)
+        self.setMinimumSize(1100, 760)
         self.motor = Motor()
         self.projeto = None
         self.trabalho = None
         self.faixas: list[Faixa] = []
 
-        central = QWidget(); self.setCentralWidget(central)
-        raiz = QVBoxLayout(central); raiz.setContentsMargins(16, 12, 16, 12); raiz.setSpacing(10)
+        central = Fundo(); self.setCentralWidget(central)
+        raiz = QVBoxLayout(central); raiz.setContentsMargins(0, 0, 0, 0); raiz.setSpacing(0)
 
-        # cabeçalho
-        cab = QHBoxLayout()
-        logo = QLabel()
-        pm = QPixmap(recurso("assets", "logo-360.png"))
-        if not pm.isNull():
-            logo.setPixmap(pm.scaledToHeight(54, Qt.SmoothTransformation))
-        cab.addWidget(logo)
-        nome = QLabel("STEAMS"); nome.setStyleSheet(f"font-size:22px; font-weight:800; letter-spacing:6px; color:{CREME};")
-        cab.addWidget(nome); cab.addSpacing(18)
-        self.titulo = QLabel("Abra uma música para começar"); self.titulo.setStyleSheet("font-size:16px; font-weight:600;")
-        self.sub = QLabel(""); self.sub.setObjectName("sub")
-        v = QVBoxLayout(); v.addWidget(self.titulo); v.addWidget(self.sub)
-        cab.addLayout(v); cab.addStretch()
-        b_nova = QPushButton("Nova música"); b_nova.setObjectName("principal"); b_nova.clicked.connect(self.nova)
-        b_bib = QPushButton("Biblioteca"); b_bib.clicked.connect(self.biblioteca)
-        self.b_exp = QPushButton("Exportar"); self.b_exp.clicked.connect(self.exportar); self.b_exp.setEnabled(False)
-        cab.addWidget(b_nova); cab.addWidget(b_bib); cab.addWidget(self.b_exp)
-        raiz.addLayout(cab)
+        self.cab = Cabecalho(84)
+        self.cab.lay.addWidget(Logo(54))
+        self.cab.lay.addSpacing(10); self.cab.lay.addWidget(Separador()); self.cab.lay.addSpacing(16)
+        v = QVBoxLayout(); v.setSpacing(2)
+        self.titulo = QLabel("Abra uma música para começar"); self.titulo.setFont(fonte(22, QFont.Medium))
+        self.sub = QLabel(""); self.sub.setFont(fonte(14)); self.sub.setStyleSheet(f"color:{CINZA};")
+        v.addStretch(); v.addWidget(self.titulo); v.addWidget(self.sub); v.addStretch()
+        self.cab.lay.addLayout(v); self.cab.lay.addStretch()
+        b_nova = Botao("Nova música", "mais", tipo="vermelho", tam_fonte=16, peso=QFont.Medium); b_nova.clicked.connect(self.nova)
+        b_bib = Botao("Biblioteca", "pasta", tam_fonte=16, peso=QFont.Medium); b_bib.clicked.connect(self.biblioteca)
+        self.b_exp = Botao("Exportar", "exportar", tam_fonte=16, peso=QFont.Medium); self.b_exp.clicked.connect(self.exportar)
+        self.b_exp.setEnabled(False)
+        for b in (b_nova, b_bib, self.b_exp):
+            b.setMinimumHeight(50); self.cab.lay.addWidget(b)
+        raiz.addWidget(self.cab)
 
-        # acorde + letra
-        meio = QHBoxLayout(); meio.setSpacing(10)
-        cx = QWidget(); cx.setObjectName("painel"); cx.setFixedWidth(200)
-        cx.setAttribute(Qt.WA_StyledBackground, True)
-        vl = QVBoxLayout(cx); vl.setContentsMargins(14, 12, 14, 12)
-        l1 = QLabel("ACORDE"); l1.setObjectName("sub"); vl.addWidget(l1)
-        self.acorde = QLabel("–"); self.acorde.setStyleSheet(f"font-size:46px; font-weight:800; color:{VERMELHO};")
-        vl.addWidget(self.acorde)
-        self.prox = QLabel(""); self.prox.setObjectName("sub"); self.prox.setStyleSheet("font-size:15px;")
-        vl.addWidget(self.prox); vl.addStretch()
-        self.tom = QLabel(""); self.tom.setObjectName("sub"); vl.addWidget(self.tom)
-        h_pad = QHBoxLayout(); lp = QLabel("Pad"); lp.setObjectName("sub")
-        self.timbre = QComboBox(); self.timbre.addItems(["Quente", "Brilhante", "Suave"])
+        self.corpo = QVBoxLayout(); self.corpo.setContentsMargins(14, 12, 14, 10); self.corpo.setSpacing(8)
+        raiz.addLayout(self.corpo, 1)
+
+        self.meio = QHBoxLayout(); self.meio.setSpacing(10)
+        col = QVBoxLayout(); col.setSpacing(0)
+        self.p_acorde = PainelAcorde()
+        self.timbre = self.p_acorde.timbre
         self.timbre.currentTextChanged.connect(self.trocar_timbre)
-        h_pad.addWidget(lp); h_pad.addWidget(self.timbre); vl.addLayout(h_pad)
-        meio.addWidget(cx)
-        self.letra = Letra(); meio.addWidget(self.letra, 1)
-        raiz.addLayout(meio)
+        col.addWidget(self.p_acorde); col.addStretch()
+        self.meio.addLayout(col)
+        self.letra = Letra(); self.meio.addWidget(self.letra, 1)
+        self.corpo.addLayout(self.meio, 0)
 
-        # mixer
         self.area = QScrollArea(); self.area.setWidgetResizable(True)
         self.area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.mixer = QWidget(); self.mixer.setObjectName("mixer")
-        self.mixer.setStyleSheet("QWidget#mixer { background: transparent; }")
-        self.area.viewport().setObjectName("vp"); self.area.viewport().setStyleSheet("QWidget#vp { background: transparent; }")
+        self.area.setFrameShape(QFrame.NoFrame)
+        self.area.viewport().setAutoFillBackground(False)
+        self.mixer = QWidget(); self.mixer.setAutoFillBackground(False)
         self.mixer_lay = QHBoxLayout(self.mixer)
-        self.mixer_lay.setContentsMargins(0, 0, 0, 0); self.mixer_lay.setSpacing(8); self.mixer_lay.addStretch()
+        self.mixer_lay.setContentsMargins(0, 0, 0, 0); self.mixer_lay.setSpacing(2); self.mixer_lay.addStretch()
         self.area.setWidget(self.mixer)
-        self.area.setMinimumHeight(330)
-        raiz.addWidget(self.area, 1)
+        self.area.setMinimumHeight(420)
+        self.area.setStyleSheet("QScrollArea { background: transparent; } QScrollArea > QWidget > QWidget { background: transparent; }")
+        self.corpo.addWidget(self.area, 1)
 
-        # onda + transporte
         self.onda = Onda(); self.onda.ir.connect(self.ir_para); self.onda.loop.connect(self.definir_loop)
-        raiz.addWidget(self.onda)
-        tr = QHBoxLayout()
-        self.b_inicio = QPushButton("⏮"); self.b_inicio.clicked.connect(lambda: self.ir_para(0))
-        self.b_play = QPushButton("▶  Tocar"); self.b_play.setObjectName("principal"); self.b_play.setMinimumWidth(120)
+        self.corpo.addWidget(self.onda)
+        self.tr = BarraTransporte()
+        L = self.tr.lay
+        self.b_inicio = Botao("", "inicio"); self.b_inicio.setFixedSize(72, 52); self.b_inicio.clicked.connect(lambda: self.ir_para(0))
+        self.b_play = Botao("Tocar", "tocar", tipo="vermelho", tam_fonte=19, peso=QFont.DemiBold); self.b_play.setFixedSize(166, 56)
         self.b_play.clicked.connect(self.tocar_pausar)
-        self.b_parar = QPushButton("⏹"); self.b_parar.clicked.connect(self.parar)
-        self.b_loop = QPushButton("Loop"); self.b_loop.setCheckable(True); self.b_loop.toggled.connect(self.alternar_loop)
+        self.b_parar = Botao("", "parar"); self.b_parar.setFixedSize(58, 52); self.b_parar.clicked.connect(self.parar)
+        self.b_loop = Botao("Loop", "loop", tam_fonte=17, peso=QFont.DemiBold); self.b_loop.setCheckable(True); self.b_loop.setFixedSize(128, 52)
+        self.b_loop.toggled.connect(self.alternar_loop)
         self.b_loop.setToolTip("Arraste na forma de onda para marcar o trecho")
-        self.relogio = QLabel("0:00.0 / 0:00.0"); self.relogio.setStyleSheet("font-size:16px; font-weight:600; font-family: monospace;")
-        tr.addWidget(self.b_inicio); tr.addWidget(self.b_play); tr.addWidget(self.b_parar); tr.addWidget(self.b_loop)
-        tr.addSpacing(14); tr.addWidget(self.relogio); tr.addStretch()
-        lm = QLabel("Master"); lm.setObjectName("sub")
-        self.master = QSlider(Qt.Horizontal); self.master.setRange(-600, 60); self.master.setValue(0); self.master.setFixedWidth(160)
-        self.master.valueChanged.connect(lambda v: setattr(self.motor, "master", db_para_lin(v / 10)))
-        ls = QLabel("Saída"); ls.setObjectName("sub")
-        self.disp = QComboBox(); self.disp.setMinimumWidth(260)
+        self.relogio = QLabel("0:00.0 / 0:00.0"); self.relogio.setFont(sk.fonte_mono(22))
+        self.relogio.setStyleSheet("color:#e9dfd2;")
+        for w in (self.b_inicio, self.b_play, self.b_parar, self.b_loop):
+            L.addWidget(w)
+        L.addSpacing(8); L.addWidget(self.relogio); L.addSpacing(8); L.addWidget(Separador()); L.addStretch()
+        lm = QLabel("Master"); lm.setFont(fonte(17, QFont.Medium))
+        self.master = sk.Pan(mestre=True); self.master.setFixedWidth(240); self.master.definir(0.82)
+        self.master.mudou.connect(self._master)
+        ls = QLabel("Saída"); ls.setFont(fonte(17, QFont.Medium))
+        self.disp = QComboBox(); self.disp.setObjectName("vermelha"); self.disp.setMinimumWidth(320); self.disp.setMinimumHeight(42)
+        self.disp.setFont(fonte(16, QFont.Medium))
         self.disp.addItem("Padrão do sistema", None)
         for d in Motor.dispositivos():
             self.disp.addItem(f'{d["nome"]} · {d["canais"]} canais', d["indice"])
         self.disp.currentIndexChanged.connect(self.trocar_dispositivo)
-        tr.addWidget(lm); tr.addWidget(self.master); tr.addSpacing(10); tr.addWidget(ls); tr.addWidget(self.disp)
-        raiz.addLayout(tr)
+        L.addWidget(lm); L.addWidget(self.master); L.addSpacing(16); L.addWidget(ls); L.addWidget(self.disp)
+        self.corpo.addWidget(self.tr)
 
         QShortcut(QKeySequence(Qt.Key_Space), self, activated=self.tocar_pausar)
         QShortcut(QKeySequence(Qt.Key_Home), self, activated=lambda: self.ir_para(0))
         self.relogio_timer = QTimer(self); self.relogio_timer.timeout.connect(self.tique); self.relogio_timer.start(33)
         self.setAcceptDrops(True)
+        self._modo_vazio(True)
+
+    def _master(self, v):
+        db = -60 + v / 0.82 * 60 if v <= 0.82 else (v - 0.82) / 0.18 * 6
+        self.motor.master = db_para_lin(db)
+
+    def _modo_vazio(self, vazio: bool):
+        """Sem música: letra vira a tela de boas-vindas e o mixer some (como na arte)."""
+        self.area.setVisible(not vazio)
+        self.p_acorde.vazio = vazio
+        self.letra.vazio = vazio
+        self.corpo.setStretchFactor(self.meio, 1 if vazio else 0)
+        if vazio:
+            self.letra.setMinimumHeight(380); self.letra.setMaximumHeight(16777215)
+            self.p_acorde.setFixedHeight(276)
+        else:
+            self.letra.setMinimumHeight(200); self.letra.setMaximumHeight(236)
+            self.p_acorde.setFixedHeight(236)
+        self.onda.setFixedHeight(172 if vazio else 150)
 
     # ---------------------------------------------------------------- ações
     def dragEnterEvent(self, e):
@@ -600,13 +865,14 @@ class Janela(QMainWindow):
         self.motor.carregar(projeto)
         if manter_pos:
             self.motor.ir_para(pos)
+        self._modo_vazio(False)
         self.titulo.setText(projeto["titulo"])
         r = projeto.get("relatorio", {})
-        self.sub.setText(f'{tempo_txt(projeto["duracao"])}  ·  {projeto["taxa"]} Hz  ·  soma dos stems = original ({r.get("nulo_db", "?")} dB)')
-        self.tom.setText(f'Tom: {projeto.get("tom", "?")}')
+        self.sub.setText(f'{tempo_txt(projeto["duracao"])}   ·   {projeto["taxa"]} Hz   ·   '
+                         f'soma dos stems = original ({r.get("nulo_db", "?")} dB)'.replace("-", "−"))
+        self.p_acorde.tom = f'Tom: {projeto.get("tom", "?")}'
         self.timbre.blockSignals(True); self.timbre.setCurrentText(projeto.get("pad_timbre", "Quente")); self.timbre.blockSignals(False)
         self.letra.definir(projeto.get("letra"), projeto.get("aviso_letra"))
-        # mixer
         for f in self.faixas:
             f.setParent(None); f.deleteLater()
         self.faixas = []
@@ -617,13 +883,24 @@ class Janela(QMainWindow):
             f.mudou.connect(self.aplicar_mixer)
             self.mixer_lay.insertWidget(self.mixer_lay.count() - 1, f)
             self.faixas.append(f)
-        # onda
         orig, _ = pj.abrir_wav_float(os.path.join(projeto["pasta"], "original.wav"))
         n = len(orig); k = max(1, n // 3000)
         bloco = np.abs(np.asarray(orig[: (n // k) * k], np.float32)).max(axis=1).reshape(-1, k).max(axis=1)
         self.onda.definir(bloco / (bloco.max() or 1), projeto["duracao"], projeto.get("acordes", []))
         self.b_exp.setEnabled(True)
         self.b_loop.setChecked(False)
+
+    def fechar_projeto(self):
+        self.salvar_mixer()
+        self.motor.descarregar()
+        self.projeto = None
+        for f in self.faixas:
+            f.setParent(None); f.deleteLater()
+        self.faixas = []
+        self.onda.definir(None, 1.0, [])
+        self.titulo.setText("Abra uma música para começar"); self.sub.setText("")
+        self.b_exp.setEnabled(False)
+        self._modo_vazio(True)
 
     def canais_dispositivo(self) -> int:
         try:
@@ -691,9 +968,13 @@ class Janela(QMainWindow):
         if not self.projeto:
             return
         try:
-            pj.regerar_pad(self.projeto, timbre)
             tocando = self.motor.tocando
-            self.abrir_projeto(self.projeto, manter_pos=True)
+            pos = self.motor.segundos
+            self.salvar_mixer()
+            self.motor.descarregar()
+            pj.regerar_pad(self.projeto, timbre)
+            self.abrir_projeto(self.projeto)
+            self.motor.ir_para(pos)
             if tocando:
                 self.motor.tocar()
         except Exception as e:
@@ -704,21 +985,25 @@ class Janela(QMainWindow):
         s = m.segundos
         dur = self.projeto["duracao"] if self.projeto else 0
         self.relogio.setText(f"{tempo_txt(s)} / {tempo_txt(dur)}")
-        self.b_play.setText("⏸  Pausar" if m.tocando else "▶  Tocar")
+        tocando = m.tocando
+        if self.b_play.text() != ("Pausar" if tocando else "Tocar"):
+            self.b_play.setText("Pausar" if tocando else "Tocar")
+            self.b_play.definir_icone("pausar" if tocando else "tocar")
         self.onda.pos = s; self.onda.update()
         self.letra.t = s; self.letra.update()
         for f in self.faixas:
             t = m.trilha(f.chave)
             if t:
-                if not m.tocando:
+                if not tocando:
                     t.pico *= 0.8
-                f.medidor.valor = t.pico; f.medidor.update()
+                f.fader.nivel = t.pico; f.fader.update()
         if self.projeto:
             ac = self.projeto.get("acordes", [])
             atual = next((a for a in ac if a["t0"] <= s < a["t1"]), None)
-            self.acorde.setText(atual["nome"] if atual and atual["nome"] != "N" else "–")
+            self.p_acorde.acorde = atual["nome"] if atual and atual["nome"] != "N" else "–"
             prox = next((a for a in ac if a["t0"] > s and a["nome"] != "N"), None)
-            self.prox.setText(f'depois: {prox["nome"]}' if prox else "")
+            self.p_acorde.prox = f'depois: {prox["nome"]}' if prox else ""
+            self.p_acorde.update()
 
     def exportar(self):
         if not self.projeto:
@@ -760,14 +1045,19 @@ def exportar_projeto(projeto: dict, destino: str) -> str:
     return pasta
 
 
+def preparar_app(app: QApplication):
+    sk.carregar_fontes()
+    app.setStyleSheet(sk.estilo_global())
+    ic = sk.recurso("icone.png")
+    if os.path.exists(ic):
+        app.setWindowIcon(QIcon(ic))
+
+
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("WMusic Steams")
     app.setOrganizationName("WMusic")
-    ic = recurso("assets", "icone.png")
-    if os.path.exists(ic):
-        app.setWindowIcon(QIcon(ic))
-    app.setStyleSheet(ESTILO)
+    preparar_app(app)
     j = Janela()
     j.show()
     if len(sys.argv) > 1 and os.path.exists(sys.argv[1]):

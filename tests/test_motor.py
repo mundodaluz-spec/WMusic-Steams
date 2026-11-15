@@ -25,7 +25,7 @@ def projeto_falso(pasta, taxa=48000, seg=6):
     p = {"pasta": pasta, "trilhas": list(trilhas) + ["pad"], "taxa": taxa, "amostras": n, "mixer": {}}
     pj.salvar(p); return p, trilhas, orig
 
-with tempfile.TemporaryDirectory() as d:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
     p, tr, orig = projeto_falso(d)
     m, sr = pj.abrir_wav_float(os.path.join(d, "voz.wav"))
     confere("WAV float ida e volta exato", np.array_equal(np.asarray(m), tr["voz"]))
@@ -74,6 +74,11 @@ with tempfile.TemporaryDirectory() as d:
     ms = (time.perf_counter() - t0) / 400 * 1000
     confere("CPU por bloco < 2 ms", ms < 2, f"{ms:.3f} ms (o bloco dura {512/sr*1000:.1f} ms)")
     mo.fechar()
+    del m
+    import gc; gc.collect()
+    # depois de descarregar, o arquivo pode ser trocado (no Windows isso falha se ficou aberto)
+    pj.gravar_wav_float(os.path.join(d, "pad.wav"), np.ones((10, 2), np.float32), 48000)
+    confere("trocar arquivo depois de descarregar", True)
 
 print(f"\n{ok}/{ok+falhas} testes OK")
 sys.exit(1 if falhas else 0)

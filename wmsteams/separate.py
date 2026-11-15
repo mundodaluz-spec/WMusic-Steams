@@ -122,15 +122,19 @@ def separar(
     from audio_separator.separator import Separator
     # Lemos e gravamos tudo com soundfile: o FFmpeg externo não é usado.
     Separator.check_ffmpeg_installed = lambda self: None
+    # A biblioteca reduz o volume de qualquer stem que passe de 1,0 ao gravar:
+    # desligado, para cada stem manter o ganho exato (e a soma fechar).
+    from audio_separator.separator import common_separator as _cs
+    _cs.spec_utils.normalize = lambda wave, max_peak=1.0, min_peak=None: wave
 
     p = progresso or (lambda *_: None)
     n = len(audio)
     p("Preparando o áudio", 0.02)
     x44 = reamostrar(audio, taxa, TAXA_MODELO)
-    # A biblioteca reduz o volume de qualquer stem que passe de 1,0. Entrando
-    # com folga (e voltando o ganho depois), nenhum stem é tocado.
+    # Modelos como o MDX dependem do nível de entrada: com a música baixa eles tiram
+    # bem menos voz. A entrada vai para pico −1 dBFS (e o ganho é desfeito na saída).
     pico = float(np.max(np.abs(x44))) or 1.0
-    escala = min(1.0, 0.25 / pico)
+    escala = 0.89 / pico
     x44 = x44 * escala
 
     with tempfile.TemporaryDirectory(prefix="wmsteams_") as tmp:

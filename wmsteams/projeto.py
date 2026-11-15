@@ -78,6 +78,32 @@ def pasta_modelo_letra() -> str | None:
     return None
 
 
+# ---------------------------------------------------------------- preferências
+
+def ler_config() -> dict:
+    try:
+        with open(os.path.join(pasta_usuario(), "config.json"), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def gravar_config(cfg: dict) -> None:
+    atual = ler_config()
+    atual.update(cfg)
+    tmp = os.path.join(pasta_usuario(), "config.json.tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(atual, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, os.path.join(pasta_usuario(), "config.json"))
+
+
+def smpte_padrao() -> dict:
+    from .smpte import PADRAO
+    d = dict(PADRAO)
+    d.update(ler_config().get("smpte_padrao", {}))
+    return d
+
+
 # ---------------------------------------------------------------- WAV float
 
 def gravar_wav_float(caminho: str, audio: np.ndarray, taxa: int) -> None:
@@ -140,7 +166,7 @@ def carregar(pasta: str) -> dict:
 
 
 def salvar(projeto: dict) -> None:
-    d = {k: v for k, v in projeto.items() if k != "pasta"}
+    d = {k: v for k, v in projeto.items() if k != "pasta" and not k.startswith("_")}
     tmp = os.path.join(projeto["pasta"], "projeto.json.tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(d, f, ensure_ascii=False, indent=1)
@@ -241,6 +267,7 @@ def processar(
         "segundos_processamento": round(time.time() - t_ini, 1),
         "aviso_letra": aviso_letra,
         "mixer": {},
+        "smpte": smpte_padrao(),
         "pasta": pasta,
     }
     salvar(projeto)

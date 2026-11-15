@@ -7,3 +7,5 @@ sounddevice>=0.5
 soundfile>=0.12
 numpy>=2
 scipy>=1.13
+aiohttp>=3.9
+qrcode>=7.4

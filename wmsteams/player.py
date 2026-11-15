@@ -28,9 +28,23 @@ class Trilha:
         self.pico = 0.0
 
 
+class TrilhaSMPTE(Trilha):
+    """Canal de timecode: gerado na hora pela posição; não entra no solo nem no master."""
+
+    def __init__(self, taxa: int, cfg: dict):
+        super().__init__("smpte", None)
+        from .smpte import GeradorLTC
+        self.gerador = GeradorLTC(taxa, cfg.get("fps", "30"), cfg.get("inicio", "01:00:00:00"))
+        self.cfg = dict(cfg)
+        self.volume = 10 ** (cfg.get("volume_db", -6.0) / 20) / 0.5  # o gerador já sai a −6 dBFS
+        self.mute = bool(cfg.get("mute", False))
+        self.saida = int(cfg.get("saida", 0))
+
+
 class Motor:
     def __init__(self):
         self.trilhas: list[Trilha] = []
+        self.smpte: TrilhaSMPTE | None = None
         self.taxa = 48000
         self.n = 0
         self.pos = 0
@@ -72,7 +86,20 @@ class Motor:
                 t.mute, t.solo, t.saida = m.get("mute", False), m.get("solo", False), m.get("saida", 0)
         if "original" in [t.chave for t in self.trilhas]:
             self.trilha("original").mute = True
+        self.configurar_smpte(projeto.get("smpte"))
         self._iniciar_prefetch()
+
+    def configurar_smpte(self, cfg: dict | None) -> None:
+        """Liga/desliga ou muda o timecode (início e fps) sem parar a música."""
+        with self._trava:
+            if cfg and cfg.get("ligado"):
+                self.smpte = TrilhaSMPTE(self.taxa, cfg)
+            else:
+                self.smpte = None
+
+    def tc_atual(self) -> str | None:
+        s = self.smpte
+        return s.gerador.tc_em(self.pos) if s else None
 
     def descarregar(self) -> None:
         """Solta os arquivos (no Windows um arquivo aberto em memmap não pode ser trocado nem apagado)."""
@@ -96,11 +123,23 @@ class Motor:
         gc.collect()
 
     def trilha(self, chave: str) -> Trilha | None:
+        if chave == "smpte":
+            return self.smpte
         return next((t for t in self.trilhas if t.chave == chave), None)
 
     def estado_mixer(self) -> dict:
         return {t.chave: {"volume": t.volume, "pan": t.pan, "mute": t.mute, "solo": t.solo,
                           "saida": t.saida} for t in self.trilhas if t.chave != "original"}
+
+    def estado_smpte(self) -> dict | None:
+        s = self.smpte
+        if not s:
+            return None
+        import math
+        d = dict(s.cfg)
+        d.update({"ligado": True, "mute": s.mute, "saida": s.saida,
+                  "volume_db": round(20 * math.log10(max(1e-6, s.volume * 0.5)), 2)})
+        return d
 
     # ------------------------------------------------------------ mixagem
     def _ganhos_alvo(self) -> list[np.ndarray]:
@@ -155,6 +194,23 @@ class Motor:
                     if c + 2 > canais:
                         c = 0
                     out[escrito:escrito + k, c:c + 2] += y
+                sm = self.smpte
+                if sm is not None:
+                    alvo = 0.0 if sm.mute else sm.volume
+                    if alvo > 0 or sm._ganho_atual[0] > 0:
+                        ltc = sm.gerador.gerar(self.pos, k)
+                        g0 = float(sm._ganho_atual[0])
+                        ganho = g0 + (alvo - g0) * rampa[:, 0] if g0 != alvo else alvo
+                        ltc = ltc * ganho
+                        sm._ganho_atual = np.array([alvo, alvo], np.float32)
+                        sm.pico = max(sm.pico * 0.9, float(np.max(np.abs(ltc))) if k else 0.0)
+                        c = 2 * sm.saida
+                        if c + 2 > canais:
+                            c = 0
+                        out[escrito:escrito + k, c] += ltc
+                        out[escrito:escrito + k, c + 1] += ltc
+                    else:
+                        sm.pico *= 0.9
                 self.pos += k
                 escrito += k
         return out
@@ -180,6 +236,8 @@ class Motor:
             self.pos = int(max(0, min(self.n - 1, round(segundos * self.taxa)))) if self.n else 0
         for t in self.trilhas:   # sem rampa saindo do nada após salto: entra suave
             t._ganho_atual = np.zeros(2, np.float32)
+        if self.smpte is not None:  # o timecode pula seco (leitor de LTC prefere assim)
+            self.smpte._ganho_atual = np.full(2, 0.0 if self.smpte.mute else self.smpte.volume, np.float32)
 
     @property
     def segundos(self) -> float:

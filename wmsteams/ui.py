@@ -11,19 +11,20 @@ from PySide6.QtCore import Qt, QThread, QTimer, Signal, QRectF, QPointF
 from PySide6.QtGui import (QColor, QFont, QIcon, QKeySequence, QPainter, QPen, QShortcut,
                            QFontMetricsF, QLinearGradient, QBrush, QPainterPath)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFrame,
-                               QGridLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
+                               QGridLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
                                QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar, QScrollArea,
                                QVBoxLayout, QWidget)
 
 from . import projeto as pj
 from . import skin as sk
 from .player import Motor
+from . import smpte as tc
 from .skin import CREME, VERMELHO, CINZA, Botao, fonte, pix
 
 CORES = {
     "voz": "#F0353A", "bateria": "#F2E3CF", "baixo": "#F2A12E", "guitarra": "#E6C27A",
     "teclas": "#8EC5EA", "outros": "#A99BF0", "instrumental": "#E6C27A", "pad": "#6FE0A8",
-    "original": "#9a938c",
+    "smpte": "#7FD7FF", "original": "#9a938c",
 }
 
 
@@ -421,6 +422,208 @@ class Faixa(QWidget):
         self._fader(self.fader.db)
 
 
+class FaixaSMPTE(Faixa):
+    """Canal de timecode: liga/desliga, início e fps da música, nível e saída própria."""
+    configurar = Signal()
+
+    def __init__(self, saidas: int):
+        super().__init__("smpte", "SMPTE", saidas)
+        self.s.hide()
+        self.pan.hide()
+        self.ligado = False
+        self.b_cfg = Botao("01:00:00:00", None, tam_fonte=12, peso=QFont.DemiBold)
+        self.b_cfg.setFixedHeight(34)
+        self.b_cfg.setToolTip("Timecode no início desta música e quadros por segundo")
+        self.b_cfg.clicked.connect(self.configurar.emit)
+        self.layout().insertWidget(1, self.b_cfg)
+        self.b_ligar = Botao("Ligar SMPTE", "relogio", tipo="metal", tam_fonte=13)
+        self.b_ligar.setFixedHeight(40)
+        self.b_ligar.clicked.connect(self.configurar.emit)
+        self.layout().insertWidget(3, self.b_ligar)
+        self.fader.definir(-6.0)
+
+    def mostrar(self, cfg: dict | None):
+        self.ligado = bool(cfg and cfg.get("ligado"))
+        for w in (self.m, self.fader, self.valor, self.saida, self.b_cfg):
+            w.setVisible(self.ligado)
+        self.b_ligar.setVisible(not self.ligado)
+        if self.ligado:
+            self.b_cfg.setText(f'{cfg.get("inicio")}')
+            self.b_cfg.setToolTip(f'Início {cfg.get("inicio")} · {cfg.get("fps")} fps (clique para mudar)')
+            self.m.blockSignals(True); self.m.setChecked(bool(cfg.get("mute"))); self.m.blockSignals(False)
+            self.fader.blockSignals(True); self.fader.definir(float(cfg.get("volume_db", -6.0))); self.fader.blockSignals(False)
+            self.saida.blockSignals(True); self.saida.setCurrentIndex(min(int(cfg.get("saida", 0)), self.saida.count() - 1)); self.saida.blockSignals(False)
+            self._fader(self.fader.db)
+        self.update()
+
+    def aplicar(self, t):
+        t.volume = db_para_lin(self.fader.db) / 0.5
+        t.mute = self.m.isChecked()
+        t.saida = max(0, self.saida.currentIndex())
+
+    def carregar(self, t):
+        if t is None:
+            return
+        for w in (self.m, self.saida):
+            w.blockSignals(True)
+        self.m.setChecked(t.mute)
+        self.fader.definir(-100 if t.volume <= 0 else 20 * np.log10(t.volume * 0.5))
+        self.saida.setCurrentIndex(min(t.saida, self.saida.count() - 1))
+        for w in (self.m, self.saida):
+            w.blockSignals(False)
+        self._fader(self.fader.db)
+
+    def paintEvent(self, e):
+        super().paintEvent(e)
+        if not self.ligado:
+            p = QPainter(self)
+            p.setFont(fonte(13)); p.setPen(QColor(CINZA))
+            r = QRectF(self.rect()).adjusted(16, 150, -16, -40)
+            p.drawText(r, Qt.AlignHCenter | Qt.AlignTop | Qt.TextWordWrap,
+                       "Timecode LTC gerado junto com a música, numa saída da placa.\n\nOpcional.")
+
+
+class DialogoSMPTE(DialogoWM):
+    def __init__(self, parent, cfg: dict, titulo_musica: str):
+        super().__init__(parent, "SMPTE · timecode", icone="relogio")
+        self.setWindowTitle("SMPTE")
+        self.setMinimumWidth(640)
+        info = QLabel(f"<b>{titulo_musica}</b>"); info.setFont(fonte(18)); self.corpo.addWidget(info)
+        self.ligado = QCheckBox("Gerar timecode SMPTE (LTC) nesta música"); self.ligado.setFont(fonte(16, QFont.Medium))
+        self.ligado.setChecked(bool(cfg.get("ligado")))
+        self.corpo.addWidget(self.ligado)
+        grade = QGridLayout(); grade.setHorizontalSpacing(24); grade.setVerticalSpacing(12)
+        self.inicio = QLineEdit(cfg.get("inicio", "01:00:00:00"))
+        self.inicio.setInputMask("99:99:99:99")
+        self.inicio.setFont(sk.fonte_mono(22)); self.inicio.setMinimumHeight(46)
+        self.inicio.setStyleSheet("QLineEdit{background:rgba(8,8,8,220);border:1px solid rgba(225,38,44,140);border-radius:8px;"
+                                  "padding:4px 12px;color:#ff4a45;letter-spacing:2px;}")
+        self.fps = QComboBox(); self.fps.addItems(list(tc.TAXAS)); self.fps.setCurrentText(cfg.get("fps", "30"))
+        self.fps.setMinimumHeight(40); self.fps.setFont(fonte(16, QFont.Medium))
+        grade.addWidget(RotuloIcone("relogio", "Timecode no início da música"), 0, 0); grade.addWidget(self.inicio, 0, 1)
+        grade.addWidget(RotuloIcone("onda", "Quadros por segundo"), 1, 0); grade.addWidget(self.fps, 1, 1)
+        grade.setColumnStretch(1, 1)
+        self.corpo.addLayout(grade)
+        self.padrao = QCheckBox("Usar estes valores nas próximas músicas"); self.padrao.setFont(fonte(14))
+        self.corpo.addWidget(self.padrao)
+        dica = QLabel("O timecode anda junto com a música: pular, voltar ou repetir um loop muda o "
+                      "timecode no mesmo instante. Escolha a saída do canal SMPTE no mixer (ex.: 7-8) "
+                      "e ligue na entrada de timecode da mesa, da luz ou do vídeo.")
+        dica.setWordWrap(True); dica.setFont(fonte(13)); dica.setStyleSheet(f"color:{CINZA};")
+        self.corpo.addWidget(dica)
+        self.erro = QLabel(""); self.erro.setStyleSheet("color:#ff6a62;"); self.corpo.addWidget(self.erro)
+        ok = Botao("Salvar", tipo="vermelho", tam_fonte=17, peso=QFont.Bold); ok.setFixedSize(160, 50)
+        no = Botao("Cancelar", tam_fonte=16, peso=QFont.Medium); no.setFixedSize(150, 50)
+        self.rodape.lay.addStretch(); self.rodape.lay.addWidget(ok); self.rodape.lay.addWidget(no)
+        ok.clicked.connect(self._ok); no.clicked.connect(self.reject)
+        self.cfg = dict(cfg)
+
+    def _ok(self):
+        try:
+            ini = tc.validar_tc(self.inicio.text(), self.fps.currentText())
+        except ValueError:
+            self.erro.setText("Timecode inválido para essa taxa (ex.: 01:00:00:00).")
+            return
+        self.cfg.update({"ligado": self.ligado.isChecked(), "inicio": ini, "fps": self.fps.currentText()})
+        if self.padrao.isChecked():
+            pj.gravar_config({"smpte_padrao": {"ligado": self.cfg["ligado"], "inicio": ini, "fps": self.cfg["fps"]}})
+        self.accept()
+
+
+class QRCode(QWidget):
+    def __init__(self, texto: str, lado=230):
+        super().__init__()
+        self.setFixedSize(lado, lado)
+        self.definir(texto)
+
+    def definir(self, texto: str):
+        try:
+            import qrcode
+            q = qrcode.QRCode(border=2, error_correction=qrcode.constants.ERROR_CORRECT_M)
+            q.add_data(texto); q.make(fit=True)
+            self.matriz = q.get_matrix()
+        except Exception:
+            self.matriz = None
+        self.update()
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.fillRect(self.rect(), QColor("#f6eee2"))
+        if not self.matriz:
+            return
+        n = len(self.matriz)
+        c = self.width() / n
+        p.setPen(Qt.NoPen); p.setBrush(QColor("#0b0b0b"))
+        for y, linha in enumerate(self.matriz):
+            for x, v in enumerate(linha):
+                if v:
+                    p.drawRect(QRectF(x * c, y * c, c + 0.5, c + 0.5))
+
+
+class DialogoRemoto(DialogoWM):
+    def __init__(self, parent, janela):
+        super().__init__(parent, "Controle remoto", icone="wifi")
+        self.setWindowTitle("Controle remoto")
+        self.setMinimumWidth(760)
+        self.j = janela
+        h = QHBoxLayout(); h.setSpacing(24)
+        self.qr = QRCode("http://0.0.0.0")
+        h.addWidget(self.qr, 0, Qt.AlignTop)
+        v = QVBoxLayout(); v.setSpacing(10)
+        self.status = QLabel(); self.status.setFont(fonte(16, QFont.DemiBold)); v.addWidget(self.status)
+        t = QLabel("No iPhone, iPad ou Android, na mesma rede Wi-Fi do computador, aponte a câmera para o "
+                   "código ou abra o endereço:")
+        t.setWordWrap(True); t.setFont(fonte(14)); t.setStyleSheet(f"color:{CINZA};"); v.addWidget(t)
+        self.url = QLabel(); self.url.setFont(sk.fonte_mono(20)); self.url.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.url.setStyleSheet("color:#ff4a45;"); v.addWidget(self.url)
+        self.outras = QLabel(); self.outras.setFont(fonte(12)); self.outras.setStyleSheet(f"color:{CINZA};"); self.outras.setWordWrap(True)
+        v.addWidget(self.outras)
+        hp = QHBoxLayout()
+        lp = QLabel("PIN para controlar:"); lp.setFont(fonte(15, QFont.Medium))
+        self.pin = QLabel(); self.pin.setFont(sk.fonte_mono(30, QFont.Bold)); self.pin.setStyleSheet("color:#F2E3CF; letter-spacing:6px;")
+        b_pin = Botao("Trocar PIN", tam_fonte=13); b_pin.setFixedHeight(38); b_pin.clicked.connect(self._trocar_pin)
+        hp.addWidget(lp); hp.addWidget(self.pin); hp.addStretch(); hp.addWidget(b_pin)
+        v.addLayout(hp)
+        d = QLabel("Sem o PIN, a pessoa só VÊ a letra, o acorde e o tempo. Com o PIN ela também toca, para, "
+                   "troca de música e mexe no mixer. O som sai só do computador: a rede leva só os comandos.")
+        d.setWordWrap(True); d.setFont(fonte(13)); d.setStyleSheet(f"color:{CINZA};"); v.addWidget(d)
+        v.addStretch()
+        h.addLayout(v, 1)
+        self.corpo.addLayout(h)
+        self.b_liga = Botao("", tipo="vermelho", tam_fonte=16, peso=QFont.Bold); self.b_liga.setFixedSize(220, 50)
+        self.b_liga.clicked.connect(self._alternar)
+        fechar = Botao("Fechar", tam_fonte=16, peso=QFont.Medium); fechar.setFixedSize(140, 50); fechar.clicked.connect(self.accept)
+        self.rodape.lay.addWidget(self.b_liga); self.rodape.lay.addStretch(); self.rodape.lay.addWidget(fechar)
+        self.timer = QTimer(self); self.timer.timeout.connect(self.atualizar); self.timer.start(700)
+        self.atualizar()
+
+    def _trocar_pin(self):
+        self.j.remoto.novo_pin(); self.atualizar()
+
+    def _alternar(self):
+        if self.j.remoto.ativo:
+            self.j.parar_remoto()
+        else:
+            self.j.iniciar_remoto(avisar=True)
+        self.atualizar()
+
+    def atualizar(self):
+        r = self.j.remoto
+        if r.ativo:
+            urls = r.urls()
+            self.url.setText(urls[0]); self.qr.definir(urls[0]); self.qr.setVisible(True)
+            self.outras.setText(("Outros endereços deste computador: " + "  ·  ".join(urls[1:])) if len(urls) > 1 else "")
+            n = r.clientes
+            self.status.setText(f"Ligado  ·  {n} aparelho{'s' if n != 1 else ''} conectado{'s' if n != 1 else ''}")
+            self.pin.setText(r.pin)
+            self.b_liga.tipo = "metal"; self.b_liga.setText("Desligar"); self.b_liga.update()
+        else:
+            self.url.setText("—"); self.qr.setVisible(False); self.outras.setText(r.erro or "")
+            self.status.setText("Desligado"); self.pin.setText(r.pin)
+            self.b_liga.tipo = "vermelho"; self.b_liga.setText("Ligar controle remoto"); self.b_liga.update()
+
+
+
 class Onda(QWidget):
     """Forma de onda, acordes em cima, cursor, clique para ir, arraste para loop."""
     ir = Signal(float)
@@ -702,6 +905,8 @@ class Separador(QWidget):
 # ===================================================================== janela
 
 class Janela(QMainWindow):
+    comando_remoto = Signal(dict)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("WMusic Steams")
@@ -711,6 +916,11 @@ class Janela(QMainWindow):
         self.projeto = None
         self.trabalho = None
         self.faixas: list[Faixa] = []
+        self.f_smpte: FaixaSMPTE | None = None
+        from .remoto import Remoto
+        self.remoto = Remoto(self._estado_remoto, lambda: self.projeto, self.comando_remoto.emit,
+                             porta=int(pj.ler_config().get("remoto_porta", 8800)))
+        self.comando_remoto.connect(self._executar_remoto)
 
         central = Fundo(); self.setCentralWidget(central)
         raiz = QVBoxLayout(central); raiz.setContentsMargins(0, 0, 0, 0); raiz.setSpacing(0)
@@ -725,9 +935,12 @@ class Janela(QMainWindow):
         self.cab.lay.addLayout(v); self.cab.lay.addStretch()
         b_nova = Botao("Nova música", "mais", tipo="vermelho", tam_fonte=16, peso=QFont.Medium); b_nova.clicked.connect(self.nova)
         b_bib = Botao("Biblioteca", "pasta", tam_fonte=16, peso=QFont.Medium); b_bib.clicked.connect(self.biblioteca)
+        self.b_remoto = Botao("Remoto", "wifi", tam_fonte=16, peso=QFont.Medium, ligado="vermelho")
+        self.b_remoto.setCheckable(True); self.b_remoto.setToolTip("Controle pelo iPhone, iPad ou celular na rede Wi-Fi")
+        self.b_remoto.clicked.connect(self.abrir_remoto)
         self.b_exp = Botao("Exportar", "exportar", tam_fonte=16, peso=QFont.Medium); self.b_exp.clicked.connect(self.exportar)
         self.b_exp.setEnabled(False)
-        for b in (b_nova, b_bib, self.b_exp):
+        for b in (b_nova, b_bib, self.b_remoto, self.b_exp):
             b.setMinimumHeight(50); self.cab.lay.addWidget(b)
         raiz.addWidget(self.cab)
 
@@ -771,7 +984,10 @@ class Janela(QMainWindow):
         self.relogio.setStyleSheet("color:#e9dfd2;")
         for w in (self.b_inicio, self.b_play, self.b_parar, self.b_loop):
             L.addWidget(w)
-        L.addSpacing(8); L.addWidget(self.relogio); L.addSpacing(8); L.addWidget(Separador()); L.addStretch()
+        self.tc_label = QLabel(""); self.tc_label.setFont(sk.fonte_mono(19)); self.tc_label.setStyleSheet("color:#ff4a45;")
+        self.tc_label.setToolTip("Timecode SMPTE que está saindo agora")
+        L.addSpacing(8); L.addWidget(self.relogio); L.addSpacing(10); L.addWidget(self.tc_label); L.addSpacing(8)
+        L.addWidget(Separador()); L.addStretch()
         lm = QLabel("Master"); lm.setFont(fonte(17, QFont.Medium))
         self.master = sk.Pan(mestre=True); self.master.setFixedWidth(240); self.master.definir(0.82)
         self.master.mudou.connect(self._master)
@@ -790,6 +1006,8 @@ class Janela(QMainWindow):
         self.relogio_timer = QTimer(self); self.relogio_timer.timeout.connect(self.tique); self.relogio_timer.start(33)
         self.setAcceptDrops(True)
         self._modo_vazio(True)
+        if pj.ler_config().get("remoto_ligado"):
+            QTimer.singleShot(300, lambda: self.iniciar_remoto(avisar=False))
 
     def _master(self, v):
         db = -60 + v / 0.82 * 60 if v <= 0.82 else (v - 0.82) / 0.18 * 6
@@ -883,10 +1101,22 @@ class Janela(QMainWindow):
             f.mudou.connect(self.aplicar_mixer)
             self.mixer_lay.insertWidget(self.mixer_lay.count() - 1, f)
             self.faixas.append(f)
+        if self.f_smpte is not None:
+            self.f_smpte.setParent(None); self.f_smpte.deleteLater()
+        self.f_smpte = FaixaSMPTE(canais)
+        self.f_smpte.mostrar(projeto.get("smpte"))
+        self.f_smpte.mudou.connect(self.aplicar_mixer)
+        self.f_smpte.configurar.connect(self.configurar_smpte)
+        self.mixer_lay.insertWidget(self.mixer_lay.count() - 1, self.f_smpte)
         orig, _ = pj.abrir_wav_float(os.path.join(projeto["pasta"], "original.wav"))
         n = len(orig); k = max(1, n // 3000)
         bloco = np.abs(np.asarray(orig[: (n // k) * k], np.float32)).max(axis=1).reshape(-1, k).max(axis=1)
-        self.onda.definir(bloco / (bloco.max() or 1), projeto["duracao"], projeto.get("acordes", []))
+        del orig
+        picos = bloco / (bloco.max() or 1)
+        self.onda.definir(picos, projeto["duracao"], projeto.get("acordes", []))
+        idx = np.linspace(0, len(picos) - 1, min(800, len(picos))).astype(int)
+        projeto["_picos_web"] = [round(float(v), 3) for v in picos[idx]]
+        self.remoto.projeto_mudou()
         self.b_exp.setEnabled(True)
         self.b_loop.setChecked(False)
 
@@ -897,7 +1127,10 @@ class Janela(QMainWindow):
         for f in self.faixas:
             f.setParent(None); f.deleteLater()
         self.faixas = []
+        if self.f_smpte is not None:
+            self.f_smpte.setParent(None); self.f_smpte.deleteLater(); self.f_smpte = None
         self.onda.definir(None, 1.0, [])
+        self.remoto.projeto_mudou()
         self.titulo.setText("Abra uma música para começar"); self.sub.setText("")
         self.b_exp.setEnabled(False)
         self._modo_vazio(True)
@@ -924,9 +1157,31 @@ class Janela(QMainWindow):
             t = self.motor.trilha(f.chave)
             if t:
                 f.aplicar(t)
+        if self.f_smpte is not None and self.motor.smpte is not None:
+            self.f_smpte.aplicar(self.motor.smpte)
+
+    def configurar_smpte(self):
+        if not self.projeto:
+            return
+        atual = dict(tc.PADRAO); atual.update(self.projeto.get("smpte") or {})
+        est = self.motor.estado_smpte()
+        if est:
+            atual.update(est)
+        d = DialogoSMPTE(self, atual, self.projeto["titulo"])
+        if d.exec() != QDialog.Accepted:
+            return
+        self.projeto["smpte"] = d.cfg
+        self.motor.configurar_smpte(d.cfg)
+        self.f_smpte.mostrar(d.cfg)
+        self.aplicar_mixer()
+        self.salvar_mixer()
+        self.remoto.projeto_mudou()
 
     def salvar_mixer(self):
         if self.projeto:
+            est = self.motor.estado_smpte()
+            if est:
+                self.projeto["smpte"] = est
             self.projeto["mixer"] = self.motor.estado_mixer()
             try:
                 pj.salvar(self.projeto)
@@ -997,6 +1252,13 @@ class Janela(QMainWindow):
                 if not tocando:
                     t.pico *= 0.8
                 f.fader.nivel = t.pico; f.fader.update()
+        if self.f_smpte is not None and m.smpte is not None:
+            if not tocando:
+                m.smpte.pico *= 0.8
+            self.f_smpte.fader.nivel = m.smpte.pico; self.f_smpte.fader.update()
+        tcs = m.tc_atual()
+        self.tc_label.setText(f"TC {tcs}" if tcs else "")
+        self.b_remoto.blockSignals(True); self.b_remoto.setChecked(self.remoto.ativo); self.b_remoto.blockSignals(False)
         if self.projeto:
             ac = self.projeto.get("acordes", [])
             atual = next((a for a in ac if a["t0"] <= s < a["t1"]), None)
@@ -1018,8 +1280,88 @@ class Janela(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Exportar", str(e))
 
+    # ---------------------------------------------------------------- controle remoto
+    def abrir_remoto(self):
+        if not self.remoto.ativo:
+            self.iniciar_remoto(avisar=True)
+        DialogoRemoto(self, self).exec()
+
+    def iniciar_remoto(self, avisar=True):
+        ok = self.remoto.iniciar()
+        pj.gravar_config({"remoto_ligado": ok})
+        if not ok and avisar:
+            QMessageBox.warning(self, "Controle remoto",
+                                f"Não consegui abrir a porta {self.remoto.porta}.\n{self.remoto.erro or ''}")
+        return ok
+
+    def parar_remoto(self):
+        self.remoto.parar()
+        pj.gravar_config({"remoto_ligado": False})
+
+    def _estado_remoto(self) -> dict:
+        m = self.motor
+        mix = {}
+        for t in list(m.trilhas):
+            if t.chave != "original":
+                mix[t.chave] = {"mute": t.mute, "solo": t.solo,
+                                "volume_db": -60.0 if t.volume <= 0 else round(20 * float(np.log10(t.volume)), 1)}
+        sm = m.smpte
+        if sm is not None:
+            mix["smpte"] = {"mute": sm.mute, "solo": False,
+                            "volume_db": round(20 * float(np.log10(max(1e-6, sm.volume * 0.5))), 1)}
+        return {"pos": round(m.segundos, 3), "tocando": bool(m.tocando), "tc": m.tc_atual(), "mixer": mix,
+                "loop": [m.loop[0] / m.taxa, m.loop[1] / m.taxa] if m.loop else None}
+
+    def _executar_remoto(self, c: dict):
+        cmd = c.get("cmd")
+        if cmd == "tocar":
+            if not self.motor.tocando:
+                self.tocar_pausar()
+        elif cmd == "pausar":
+            self.motor.pausar()
+        elif cmd == "parar":
+            self.parar()
+        elif cmd == "ir":
+            try:
+                self.ir_para(float(c.get("s", 0)))
+            except (TypeError, ValueError):
+                pass
+        elif cmd == "abrir":
+            try:
+                self.abrir_projeto(pj.carregar(c["pasta"]))
+            except Exception:
+                pass
+        elif cmd == "loop" and self.projeto:
+            try:
+                a, b = sorted((float(c["a"]), float(c["b"])))
+                self.onda.loop_s = (a, b); self.definir_loop((a, b))
+            except Exception:
+                pass
+        elif cmd == "loop_off":
+            self.b_loop.setChecked(False)
+        elif cmd == "mixer":
+            k, campo, v = c.get("chave"), c.get("campo"), c.get("valor")
+            t = self.motor.trilha(k)
+            if t is None:
+                return
+            if campo == "mute":
+                t.mute = bool(v)
+            elif campo == "solo" and k != "smpte":
+                t.solo = bool(v)
+            elif campo == "volume_db":
+                try:
+                    db = max(-60.0, min(12.0, float(v)))
+                except (TypeError, ValueError):
+                    return
+                lin = db_para_lin(db)
+                t.volume = lin / 0.5 if k == "smpte" else lin
+            f = self.f_smpte if k == "smpte" else next((x for x in self.faixas if x.chave == k), None)
+            if f is not None:
+                f.carregar(t)
+
     def closeEvent(self, e):
         self.salvar_mixer()
+        self.remoto.parar()
         self.motor.fechar()
         super().closeEvent(e)
 
@@ -1034,6 +1376,12 @@ def exportar_projeto(projeto: dict, destino: str) -> str:
         a, sr = pj.abrir_wav_float(os.path.join(projeto["pasta"], k + ".wav"))
         sub = "PCM_24" if float(np.max(np.abs(a))) <= 1.0 else "FLOAT"
         sf.write(os.path.join(pasta, f"{i:02d} {pj.NOMES_TELA.get(k, k)}.wav"), np.asarray(a), sr, subtype=sub)
+    sm = projeto.get("smpte") or {}
+    if sm.get("ligado"):
+        from .smpte import gerar_arquivo
+        ltc = gerar_arquivo(projeto["amostras"], projeto["taxa"], sm.get("fps", "30"), sm.get("inicio", "01:00:00:00"))
+        sf.write(os.path.join(pasta, f"{len(projeto['trilhas']) + 1:02d} SMPTE {sm.get('inicio')} {sm.get('fps')}.wav".replace(":", "-")),
+                 ltc, projeto["taxa"], subtype="PCM_24")
     if projeto.get("letra", {}).get("linhas"):
         with open(os.path.join(pasta, "Letra.lrc"), "w", encoding="utf-8") as f:
             f.write(para_lrc(projeto["letra"]))

@@ -73,6 +73,23 @@ with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
     for _ in range(400): mo.renderizar(512)
     ms = (time.perf_counter() - t0) / 400 * 1000
     confere("CPU por bloco < 2 ms", ms < 2, f"{ms:.3f} ms (o bloco dura {512/sr*1000:.1f} ms)")
+    # SMPTE na saída 3-4: não mexe nos stems, não obedece solo nem master, TC bate com a posição
+    from wmsteams import smpte as sm
+    mo.loop = None
+    for t in mo.trilhas: t.mute = t.solo = False; t.volume = 1.0; t.pan = 0.0; t.saida = 0
+    mo.configurar_smpte({"ligado": True, "inicio": "10:00:00:00", "fps": "25", "saida": 1})
+    mo.canais_saida = 4; mo.master = 0.5; mo.trilha("voz").solo = True
+    mo.ir_para(2.0); mo.tocando = True
+    blocos = [mo.renderizar(int(n)).copy() for n in np.random.default_rng(9).integers(100, 1500, 120)]
+    y = np.concatenate(blocos); a0 = int(2.0 * sr)
+    dec = sm.decodificar(y[:, 2], sr, "25")
+    certo = all(sm.tc_para_quadros(tc, "25") - sm.tc_para_quadros("10:00:00:00", "25") == round((a0 + pos) * 25 / sr) for pos, tc in dec[1:])
+    confere("SMPTE: timecode = posição da música (após pular para 2 s)", certo and dec[1][1].startswith("10:00:02"), f"{dec[1][1]} … {dec[-1][1]}")
+    confere("SMPTE: canais 3 e 4 iguais", np.array_equal(y[:, 2], y[:, 3]))
+    k0 = len(blocos[0])
+    confere("SMPTE não vaza na saída 1-2", db(y[k0:, :2] - 0.5 * tr["voz"][a0 + k0:a0 + len(y)]) < -120)
+    confere("SMPTE ignora solo e master (−6 dBFS)", abs(np.max(np.abs(y[:, 2])) - 0.5) < 0.01)
+    mo.configurar_smpte(None); mo.canais_saida = 2; mo.master = 1.0
     mo.fechar()
     del m
     import gc; gc.collect()

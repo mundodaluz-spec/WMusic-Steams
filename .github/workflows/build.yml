@@ -56,6 +56,8 @@ jobs:
         run: |
           python tests/test_motor.py
           python tests/test_leitura.py
+          python tests/test_smpte.py
+          python tests/test_remoto.py
       - name: Compilar
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then ICO=assets/icone.ico; SEP=";"; else ICO=assets/icone.icns; SEP=":"; fi
@@ -65,7 +67,7 @@ jobs:
             --collect-all audio_separator --collect-all faster_whisper --collect-all ctranslate2 \
             --collect-all tokenizers --collect-all onnxruntime --collect-data librosa \
             --collect-all _sounddevice_data --collect-all diffq --collect-all julius \
-            --collect-submodules wmsteams --hidden-import sounddevice \
+            --collect-submodules wmsteams --hidden-import sounddevice --collect-submodules aiohttp --collect-submodules qrcode \
             --exclude-module tkinter --exclude-module matplotlib --exclude-module IPython --exclude-module pkg_resources --exclude-module samplerate \
             wmusic_steams.py
           du -sh dist/*

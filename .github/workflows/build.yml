@@ -59,6 +59,7 @@ jobs:
           python tests/test_leitura.py
           python tests/test_smpte.py
           python tests/test_remoto.py
+          python tests/test_sem_console.py
       - name: Compilar
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then ICO=assets/icone.ico; SEP=";"; else ICO=assets/icone.icns; SEP=":"; fi

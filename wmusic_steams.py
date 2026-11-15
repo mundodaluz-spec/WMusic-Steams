@@ -18,7 +18,7 @@ import sys
 _LOG = None
 
 
-def _say(txt):
+def _say(txt):  # noqa: E302
     if _LOG:
         try:
             with open(_LOG, "a", encoding="utf-8") as f:
@@ -91,8 +91,37 @@ def cli(argv) -> int:
     return 0 if resultado.get("ok") else 2
 
 
+def _saidas_seguras():
+    """No Windows, o programa aberto pelo ícone não tem console: sys.stdout e sys.stderr
+    ficam None e qualquer barra de progresso/print das bibliotecas quebra com
+    "'NoneType' object has no attribute 'write'". Manda tudo para um arquivo de log."""
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    try:
+        if sys.platform == "win32":
+            pasta = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "WMusic", "WMusic Steams")
+        elif sys.platform == "darwin":
+            pasta = os.path.expanduser("~/Library/Application Support/WMusic/WMusic Steams")
+        else:
+            pasta = os.path.expanduser("~/.local/share/WMusic/WMusic Steams")
+        os.makedirs(pasta, exist_ok=True)
+        log = open(os.path.join(pasta, "registro.log"), "a", encoding="utf-8", buffering=1)
+    except Exception:
+        log = open(os.devnull, "w", encoding="utf-8")
+    if sys.stdout is None:
+        sys.stdout = log
+    if sys.stderr is None:
+        sys.stderr = log
+    try:
+        import faulthandler
+        faulthandler.enable(file=log)
+    except Exception:
+        pass
+
+
 def main():
     multiprocessing.freeze_support()
+    _saidas_seguras()
     if len(sys.argv) > 1 and sys.argv[1].startswith("--"):
         sys.exit(cli(sys.argv[1:]))
     from wmsteams.ui import main as ui_main

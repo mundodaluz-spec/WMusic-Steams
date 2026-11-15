@@ -33,6 +33,7 @@ jobs:
           - { os: macos-15, nome: macOS-AppleSilicon, idioma: en }
     runs-on: ${{ matrix.os }}
     defaults: { run: { shell: bash } }
+    env: { PYTHONIOENCODING: utf-8, PYTHONUTF8: "1" }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

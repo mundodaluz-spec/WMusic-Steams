@@ -6,6 +6,7 @@ confere offline com a chave pública abaixo.
 - VENDA: preso ao "código do computador" (mandado pelo cliente junto com o
   comprovante). O mesmo serial não ativa em outro computador.
 - BETA: tem data de validade; pode ou não ser preso a um computador.
+- PRESENTE: ilimitado (sem validade); pode ou não ser preso a um computador.
 - Sem serial: modo teste, separa GRATIS músicas. Tocar o que já foi separado
   continua livre sempre.
 """
@@ -27,7 +28,7 @@ CONTEXTO = b"WMUSIC STEAMS 1"
 ALF = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 EPOCA = dt.date(2026, 1, 1)
 GRATIS = 3
-VENDA, BETA = 1, 2
+VENDA, BETA, PRESENTE = 1, 2, 3
 REVOGADOS: set[str] = set()   # ids (hex) de seriais cancelados; entram na próxima versão
 
 PASTAS_TESTE: list[str] | None = None   # os testes trocam para uma pasta temporária
@@ -156,6 +157,8 @@ def ler(texto: str, conferir_maquina: bool = True) -> dict:
     if bruto[0] != 1 or len(sig) != 64 or not ed.conferir(PUBLICA, CONTEXTO + payload, sig):
         raise ErroSerial("Serial inválido. Confira se copiou inteiro, sem cortar nenhuma parte.")
     tipo = bruto[1]
+    if tipo not in (VENDA, BETA, PRESENTE):
+        raise ErroSerial("Este serial é de uma versão mais nova do WMusic Steams. Atualize o programa.")
     ident = bruto[2:6].hex().upper()
     emissao = EPOCA + dt.timedelta(days=int.from_bytes(bruto[6:8], "big"))
     v = int.from_bytes(bruto[8:10], "big")
@@ -167,7 +170,7 @@ def ler(texto: str, conferir_maquina: bool = True) -> dict:
     if conferir_maquina and maq != bytes(5) and maq != _maquina_bytes():
         raise ErroSerial("Este serial é de outro computador. O código deste computador é "
                          f"{codigo_computador()}: mande para a WMusic no WhatsApp.")
-    return {"tipo": "venda" if tipo == VENDA else "beta", "id": ident, "nome": nome,
+    return {"tipo": {VENDA: "venda", BETA: "beta", PRESENTE: "presente"}[tipo], "id": ident, "nome": nome,
             "emissao": emissao.isoformat(), "validade": validade.isoformat() if validade else None,
             "preso": maq != bytes(5), "serial": texto.strip()}
 
@@ -279,7 +282,7 @@ def remover():
 
 def pode_separar() -> tuple[bool, str]:
     e = estado()
-    if e["tipo"] in ("venda", "beta"):
+    if e["tipo"] in ("venda", "beta", "presente"):
         return True, ""
     if e["restantes"] > 0:
         return True, ""
@@ -298,7 +301,7 @@ def registrar_separacao():
 
 def texto_estado(e: dict | None = None) -> str:
     e = e or estado()
-    if e["tipo"] == "venda":
+    if e["tipo"] in ("venda", "presente"):
         return f"Licenciado para {e['nome']}"
     if e["tipo"] == "beta":
         v = dt.date.fromisoformat(e["validade"]).strftime("%d/%m/%Y")
@@ -309,7 +312,7 @@ def texto_estado(e: dict | None = None) -> str:
 
 def texto_curto(e: dict | None = None) -> str:
     e = e or estado()
-    if e["tipo"] == "venda":
+    if e["tipo"] in ("venda", "presente"):
         return "Licenciado"
     if e["tipo"] == "beta":
         return "BETA até " + dt.date.fromisoformat(e["validade"]).strftime("%d/%m")

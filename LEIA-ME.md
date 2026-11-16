@@ -40,6 +40,7 @@ Separação: modelo Hybrid Transformer Demucs de 6 stems (Meta, MIT) pela biblio
 - Sem serial, o programa funciona em **teste grátis: separa 3 músicas**. Tocar as músicas já separadas continua livre.
 - O botão da chave, no alto da tela, mostra o **código do computador** (ex.: AB12-CD34). Para comprar, o cliente paga no Pix e manda o comprovante e esse código no WhatsApp.
 - O serial de venda (`WMST-…`) é feito para aquele computador: não ativa em outro. Para um 2º computador do mesmo cliente, gere outro serial com o mesmo id.
+- Serial de **presente**: ilimitado, não vence; pode ou não ser preso a um computador.
 - Serial de **beta tester**: tem data de validade (15, 30, 60 ou 90 dias ou uma data); pode ser preso a um computador ou não. Quando vence, o programa volta para o modo teste.
 - Gerador: `ferramentas/gerador-celular.html` (celular) ou `ferramentas/gerar_serial.py` (computador). A chave privada fica só com o Heitor, fora do GitHub.
 - Cancelar um serial: coloque o id em `REVOGADOS` (`wmsteams/licenca.py`) na próxima versão.

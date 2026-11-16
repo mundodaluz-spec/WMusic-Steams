@@ -249,7 +249,7 @@ class DialogoLicenca(DialogoWM):
     def atualizar(self):
         e = self.lc.estado()
         self.status.setText(self.lc.texto_estado(e))
-        self.status.setStyleSheet("color:#7bd88f;" if e["tipo"] == "venda" else
+        self.status.setStyleSheet("color:#7bd88f;" if e["tipo"] in ("venda", "presente") else
                                   "color:#F5C04A;" if e["tipo"] == "beta" else "color:#F2E3CF;")
         self.b_rem.setVisible(e["tipo"] != "teste")
         if e.get("aviso"):

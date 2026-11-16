@@ -39,7 +39,7 @@ small.m{color:var(--mut)}
 </section>
 
 <div id="app" hidden>
-<div class="abas"><button id="abaV" class="on">Venda</button><button id="abaB">Beta tester</button></div>
+<div class="abas"><button id="abaV" class="on">Venda</button><button id="abaB">Beta tester</button><button id="abaP">Presente</button></div>
 
 <section class="card" id="venda">
   <h2>Nova venda</h2>
@@ -62,6 +62,16 @@ small.m{color:var(--mut)}
   <button class="pri" id="btBeta" style="width:100%">Gerar serial de beta</button>
 </section>
 
+<section class="card" id="pres" hidden>
+  <h2>Presente · licença ilimitada</h2>
+  <p class="msg">Não vence nunca e não entra na soma do MEI.</p>
+  <label>Nome de quem vai ganhar<input id="pNome" autocomplete="off"></label>
+  <label>Código do computador (recomendado: sem ele, o serial funciona em qualquer computador e pode ser repassado)<input id="pCod" class="mono" placeholder="AB12-CD34" autocomplete="off"></label>
+  <label>Observação (só para você)<input id="pObs" placeholder="ex.: presente de aniversário" autocomplete="off"></label>
+  <label>WhatsApp com DDD<input id="pZap" inputmode="tel" placeholder="27 99999-9999"></label>
+  <button class="pri" id="btPres" style="width:100%">Gerar serial de presente</button>
+</section>
+
 <section class="card" id="res" hidden>
   <h2>Serial gerado</h2>
   <div class="serial" id="serial"></div>
@@ -78,6 +88,10 @@ small.m{color:var(--mut)}
   <table><thead><tr><th>Data</th><th>Cliente</th><th>R$</th><th></th></tr></thead><tbody id="tV"></tbody></table>
   <p class="msg">O limite do MEI soma <b>todas</b> as suas vendas, não só este produto.</p>
 </section>
+<section class="card" id="lPres" hidden>
+  <h2>Presentes</h2>
+  <table><thead><tr><th>Nome</th><th>Data</th><th></th></tr></thead><tbody id="tP"></tbody></table>
+</section>
 <section class="card" id="lBetas" hidden>
   <h2>Beta testers</h2>
   <table><thead><tr><th>Nome</th><th>Até</th><th></th></tr></thead><tbody id="tB"></tbody></table>
@@ -89,7 +103,7 @@ small.m{color:var(--mut)}
 <script>/*__SERIAL__*/</script>
 <script>
 (function(){
-var $=function(i){return document.getElementById(i)}, PUB="__PUB__", K="wmst-ger-chave", V="wmst-ger-vendas", BT="wmst-ger-betas", TETO=78000;
+var $=function(i){return document.getElementById(i)}, PUB="__PUB__", K="wmst-ger-chave", V="wmst-ger-vendas", BT="wmst-ger-betas", PR="wmst-ger-presentes", TETO=78000;
 var LINK="https://wmusic-steams.netlify.app";
 function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}}
 function hex(h){var o=new Uint8Array(h.length/2);for(var i=0;i<o.length;i++)o[i]=parseInt(h.substr(i*2,2),16);return o}
@@ -105,9 +119,9 @@ $("btChave").onclick=function(){var h=lerChave($("chave").value);
  ls(K,h);$("chave").value="";tela()};
 $("btEsquecer").onclick=function(){var b=this;if(!b.dataset.c){b.dataset.c=1;b.textContent="Toque de novo para esquecer";return}
  try{localStorage.removeItem(K)}catch(e){}seed=null;b.textContent="Esquecer chave";delete b.dataset.c;tela()};
-function trocar(a){aba=a;$("abaV").className=a==="v"?"on":"";$("abaB").className=a==="b"?"on":"";
+function trocar(a){aba=a;$("abaV").className=a==="v"?"on":"";$("abaB").className=a==="b"?"on":"";$("abaP").className=a==="p"?"on":"";$("pres").hidden=a!=="p";$("lPres").hidden=a!=="p";
  $("venda").hidden=a!=="v";$("beta").hidden=a!=="b";$("lVendas").hidden=a!=="v";$("lBetas").hidden=a!=="b";$("res").hidden=true;$("msg").textContent=""}
-$("abaV").onclick=function(){trocar("v")};$("abaB").onclick=function(){trocar("b")};
+$("abaV").onclick=function(){trocar("v")};$("abaB").onclick=function(){trocar("b")};$("abaP").onclick=function(){trocar("p")};
 Array.prototype.forEach.call($("bDias").children,function(b){b.onclick=function(){dias=+b.dataset.d;$("bData").value="";
  Array.prototype.forEach.call($("bDias").children,function(x){x.className=x===b?"on":""})}});
 $("bData").oninput=function(){Array.prototype.forEach.call($("bDias").children,function(x){x.className=""})};
@@ -128,7 +142,10 @@ function listas(){var vs=lista(V),ano=String(new Date().getFullYear()),t=0,n=0;$
  $("tB").innerHTML="";var hoje=new Date();hoje.setHours(0,0,0,0);
  lista(BT).slice().reverse().forEach(function(b){var ate=new Date(b.ate+"T00:00:00"),venc=ate<hoje;
   var tr=document.createElement("tr");tr.innerHTML="<td>"+esc(b.nome)+"<br><small class='m'>"+(b.cod?esc(b.cod):"qualquer computador")+" · id "+b.id+"</small></td><td>"+dataBR(ate).slice(0,5)+(venc?" <span class='tag'>venceu</span>":"")+"</td><td></td>";
-  botaoApagar(tr.lastChild,BT,b.id+b.cod);$("tB").appendChild(tr)})}
+  botaoApagar(tr.lastChild,BT,b.id+b.cod);$("tB").appendChild(tr)});
+ $("tP").innerHTML="";lista(PR).slice().reverse().forEach(function(b){var tr=document.createElement("tr");
+  tr.innerHTML="<td>"+esc(b.nome)+"<br><small class='m'>"+(b.cod?esc(b.cod):"qualquer computador")+" · id "+b.id+(b.obs?" · "+esc(b.obs):"")+"</small></td><td>"+b.data.slice(0,5)+"</td><td></td>";
+  botaoApagar(tr.lastChild,PR,b.id+b.cod);$("tP").appendChild(tr)})}
 function erro(t){$("msg").textContent=t;$("msg").className="msg err";$("res").hidden=true}
 function zapLink(z,txt){z=String(z).replace(/\D/g,"");if(z&&z.indexOf("55")!==0)z="55"+z;$("btZap").href="https://wa.me/"+z+"?text="+encodeURIComponent(txt);$("btZap").hidden=!z}
 function mostrar(serial,texto,conf){ultimo={serial:serial,msg:texto};$("serial").textContent=serial;$("conf").textContent=conf;$("res").hidden=false}
@@ -154,6 +171,14 @@ $("btBeta").onclick=function(){
  var y=ate.getFullYear()+"-"+("0"+(ate.getMonth()+1)).slice(-2)+"-"+("0"+ate.getDate()).slice(-2);
  var bs=lista(BT);bs.push({data:dataBR(new Date()),id:r.id,nome:nome,cod:cod,ate:y,zap:$("bZap").value.replace(/\D/g,""),serial:r.serial});ls(BT,JSON.stringify(bs));
  var t=msgBeta(nome,ate,cod,r.serial);mostrar(r.serial,t,"✔ Beta até "+dataBR(ate)+" · id "+r.id);zapLink($("bZap").value,t);$("msg").textContent="";listas()};
+function msgPres(n,cod,s){return "Olá, "+n+"! Você ganhou uma licença do WMusic Steams 🎁🎧\n\nSeu serial"+(cod?" (feito para o computador "+cod+")":"")+":\n"+s+
+ "\n\nComo ativar: abra o WMusic Steams, clique no botão da chave no alto da tela, cole o serial inteiro e clique em Ativar.\n\nDownload e instruções: "+LINK+"\nAproveite!"}
+$("btPres").onclick=function(){
+ var nome=$("pNome").value.trim(),cod=$("pCod").value.trim();if(!nome)return erro("Escreva o nome de quem vai ganhar.");
+ if(cod){try{WMSTSerial.codigo(cod)}catch(e){return erro(e.message)}cod=WMSTSerial.limpar(cod);cod=cod.slice(0,4)+"-"+cod.slice(4)}
+ var r=WMSTSerial.montar(seed,nome,3,cod||null,null,null);
+ var ps=lista(PR);ps.push({data:dataBR(new Date()),id:r.id,nome:nome,cod:cod,obs:$("pObs").value.trim(),zap:$("pZap").value.replace(/\D/g,""),serial:r.serial});ls(PR,JSON.stringify(ps));
+ var t=msgPres(nome,cod,r.serial);mostrar(r.serial,t,"✔ Presente ilimitado · id "+r.id);zapLink($("pZap").value,t);$("msg").textContent="";listas()};
 function copiar(t,b){var o=b.textContent;function feito(){b.textContent="Copiado ✔";setTimeout(function(){b.textContent=o},1500)}
  if(navigator.clipboard)navigator.clipboard.writeText(t).then(feito,velho);else velho();
  function velho(){var a=document.createElement("textarea");a.value=t;document.body.appendChild(a);a.select();try{document.execCommand("copy");feito()}catch(e){b.textContent="Selecione e copie"}a.remove()}}
@@ -161,7 +186,8 @@ $("btCopS").onclick=function(){if(ultimo)copiar(ultimo.serial,this)};
 $("btCopM").onclick=function(){if(ultimo)copiar(ultimo.msg,this)};
 $("btCSV").onclick=function(){var l=["tipo;data;id;nome;computador;whatsapp;valor;validade;serial"];
  lista(V).forEach(function(v){l.push(["venda",v.data,v.id,v.nome,v.cod,v.zap,v.valor.toFixed(2).replace(".",","),"",v.serial].join(";"))});
- lista(BT).forEach(function(v){l.push(["beta",v.data,v.id,v.nome,v.cod||"",v.zap,"",v.ate,v.serial].join(";"))});copiar(l.join("\n"),this)};
+ lista(BT).forEach(function(v){l.push(["beta",v.data,v.id,v.nome,v.cod||"",v.zap,"",v.ate,v.serial].join(";"))});
+ lista(PR).forEach(function(v){l.push(["presente",v.data,v.id,v.nome,v.cod||"",v.zap,"","ilimitado",v.serial].join(";"))});copiar(l.join("\n"),this)};
 var h=ls(K);if(h)usar(h);tela();
 })();
 </script></body></html>

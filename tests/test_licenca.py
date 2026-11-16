@@ -84,6 +84,19 @@ def main():
     caso("beta preso ao computador", lc.ler(beta_preso)["preso"])
     caso("beta sem validade é recusado no gerador", erro(lambda: lc.montar(SEED, "X", lc.BETA)) != "")
 
+    # presente (ilimitado)
+    pres, _ = lc.montar(SEED, "Amigo Presente", lc.PRESENTE)
+    e = lc.ativar(pres)
+    caso("presente ativa sem validade e sem computador", e["tipo"] == "presente" and e["validade"] is None and lc.pode_separar()[0])
+    caso("presente mostra Licenciado", lc.texto_estado() == "Licenciado para Amigo Presente" and lc.texto_curto() == "Licenciado")
+    d = lc._ler_todos(); d["visto"] = (hoje + dt.timedelta(days=3650)).isoformat(); lc._gravar(d)
+    caso("presente não vence nem daqui a 10 anos", lc.estado()["tipo"] == "presente")
+    pres_preso, _ = lc.montar(SEED, "Amigo 2", lc.PRESENTE, codigo=cod)
+    lc.MAQUINA_TESTE = "outro-computador"
+    caso("presente preso não vale em outro computador", "outro computador" in erro(lambda: lc.ler(pres_preso)))
+    lc.MAQUINA_TESTE = "maquina-do-cliente"
+    lc.remover(); _limpar_visto()
+
     # relógio voltando
     lc.ativar(beta)
     d = lc._ler_todos(); d["visto"] = (hoje + dt.timedelta(days=31)).isoformat(); lc._gravar(d)
@@ -98,6 +111,10 @@ def main():
     caso("assinatura confere com cryptography (RFC 8032)", _rfc())
     print(f"\n{ok}/{ok + falhas}")
     return 1 if falhas else 0
+
+
+def _limpar_visto():
+    d = lc._ler_todos(); d["visto"] = ""; lc._gravar(d)
 
 
 def _rfc():

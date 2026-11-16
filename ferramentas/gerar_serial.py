@@ -44,13 +44,20 @@ def total_ano():
 def main():
     seed = ler_chave()
     print("\n=== WMusic Steams · gerador de seriais ===")
-    tipo = input("1 = venda   2 = beta tester  [1]: ").strip() or "1"
+    tipo = input("1 = venda   2 = beta tester   3 = presente (ilimitado)  [1]: ").strip() or "1"
     nome = input("Nome: ").strip()
     if not nome:
         sys.exit("Sem nome, sem serial.")
     zap = "".join(c for c in input("WhatsApp com DDD (opcional): ") if c.isdigit())
     hoje = dt.date.today()
-    if tipo == "2":
+    if tipo == "3":
+        cod = input("Código do computador (recomendado; Enter = qualquer computador): ").strip() or None
+        serial, ident = lc.montar(seed, nome, lc.PRESENTE, codigo=cod)
+        registrar(["presente", hoje.strftime("%d/%m/%Y"), ident, nome, (cod or "").upper(), zap, "", "ilimitado", serial])
+        msg = (f"Olá, {nome}! Você ganhou uma licença do WMusic Steams 🎁🎧\n\nSeu serial:\n{serial}\n\n"
+               "Como ativar: abra o WMusic Steams, clique no botão da chave no alto da tela, cole o serial inteiro e "
+               f"clique em Ativar.\n\nDownload e instruções: {LINK}\nAproveite!")
+    elif tipo == "2":
         d = input("Válido por quantos dias [30]: ").strip()
         ate = hoje + dt.timedelta(days=int(d or 30))
         cod = input("Código do computador (Enter = qualquer computador): ").strip() or None

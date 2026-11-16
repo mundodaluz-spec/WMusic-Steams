@@ -44,13 +44,15 @@ jobs:
           python -m pip install --upgrade pip
           if [ "${{ matrix.cuda }}" = "true" ]; then
             # placa NVIDIA: torch com CUDA 12.6 (os DLLs do CUDA vão dentro do pacote; precisa só do driver)
-            pip install "torch>=2.6,<2.9" --index-url https://download.pytorch.org/whl/cu126
+            pip install "torch==2.8.0" "torchvision==0.23.0" --index-url https://download.pytorch.org/whl/cu126
           elif [ "$RUNNER_OS" = "Windows" ]; then
             pip install "torch>=2.3,<2.9" --index-url https://download.pytorch.org/whl/cpu
           else
             pip install "torch>=2.13,<3"
           fi
-          pip install -r requirements.txt pyinstaller==6.16.0 imageio-ffmpeg "setuptools<80"
+          # trava o torch escolhido acima (senão outra dependência troca pela versão sem placa)
+          pip freeze | grep -iE "^(torch|torchvision)==" > travas.txt; cat travas.txt
+          pip install -r requirements.txt pyinstaller==6.16.0 imageio-ffmpeg "setuptools<80" -c travas.txt
           python -c "import torch; print('torch', torch.__version__, 'cuda', torch.version.cuda)"
       - uses: actions/download-artifact@v4
         with: { name: modelo-letra, path: modelos/letra }

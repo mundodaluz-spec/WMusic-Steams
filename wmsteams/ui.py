@@ -203,6 +203,91 @@ class DialogoWM(QDialog):
         sk.pintar_fundo(p, QRectF(self.rect()), 120)
 
 
+LINK_SITE = "https://wmusic-steams.netlify.app"
+ZAP = "5527999265692"
+
+
+class DialogoLicenca(DialogoWM):
+    """Ativar licença: mostra o código do computador e recebe o serial."""
+
+    def __init__(self, parent, motivo: str = ""):
+        super().__init__(parent, "Licença", icone="chave")
+        from . import licenca as lc
+        self.lc = lc
+        self.setWindowTitle("Licença do WMusic Steams")
+        self.setMinimumWidth(760)
+        if motivo:
+            m = QLabel(motivo); m.setWordWrap(True); m.setFont(fonte(15, QFont.Medium))
+            m.setStyleSheet("color:#ff6a62;"); self.corpo.addWidget(m)
+        self.status = QLabel(); self.status.setFont(fonte(19, QFont.DemiBold)); self.corpo.addWidget(self.status)
+        hc = QHBoxLayout(); hc.setSpacing(14)
+        lc_ = QLabel("Código deste computador:"); lc_.setFont(fonte(15, QFont.Medium))
+        self.codigo = QLabel(lc.codigo_computador()); self.codigo.setFont(sk.fonte_mono(28, QFont.Bold))
+        self.codigo.setStyleSheet("color:#ff4a45; letter-spacing:3px;")
+        self.codigo.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        b_cop = Botao("Copiar código", tam_fonte=13); b_cop.setFixedHeight(40); b_cop.clicked.connect(self._copiar)
+        hc.addWidget(lc_); hc.addWidget(self.codigo); hc.addStretch(); hc.addWidget(b_cop)
+        self.corpo.addLayout(hc)
+        t = QLabel("Para comprar: pague no Pix e mande o comprovante e este código no WhatsApp. Você recebe "
+                   "um serial feito para este computador. Cole o serial abaixo:")
+        t.setWordWrap(True); t.setFont(fonte(14)); t.setStyleSheet(f"color:{CINZA};"); self.corpo.addWidget(t)
+        self.serial = QPlainTextEdit(); self.serial.setPlaceholderText("WMST-…")
+        self.serial.setFont(sk.fonte_mono(13)); self.serial.setFixedHeight(96)
+        self.corpo.addWidget(self.serial)
+        self.msg = QLabel(""); self.msg.setWordWrap(True); self.msg.setFont(fonte(14)); self.corpo.addWidget(self.msg)
+        ativar = Botao("Ativar", "chave", tipo="vermelho", tam_fonte=17, peso=QFont.Bold); ativar.setFixedSize(170, 50)
+        ativar.clicked.connect(self._ativar)
+        comprar = Botao("Comprar no WhatsApp", tam_fonte=15, peso=QFont.Medium); comprar.setFixedHeight(50)
+        comprar.clicked.connect(self._comprar)
+        self.b_rem = Botao("Remover licença", tam_fonte=13); self.b_rem.setFixedHeight(40); self.b_rem.clicked.connect(self._remover)
+        fechar = Botao("Fechar", tam_fonte=16, peso=QFont.Medium); fechar.setFixedSize(140, 50); fechar.clicked.connect(self.accept)
+        for w in (ativar, comprar, self.b_rem):
+            self.rodape.lay.addWidget(w)
+        self.rodape.lay.addStretch(); self.rodape.lay.addWidget(fechar)
+        self.atualizar()
+
+    def atualizar(self):
+        e = self.lc.estado()
+        self.status.setText(self.lc.texto_estado(e))
+        self.status.setStyleSheet("color:#7bd88f;" if e["tipo"] == "venda" else
+                                  "color:#F5C04A;" if e["tipo"] == "beta" else "color:#F2E3CF;")
+        self.b_rem.setVisible(e["tipo"] != "teste")
+        if e.get("aviso"):
+            self.msg.setText(e["aviso"]); self.msg.setStyleSheet("color:#ff6a62;")
+
+    def _copiar(self):
+        QApplication.clipboard().setText(self.codigo.text())
+        self.msg.setText("Código copiado."); self.msg.setStyleSheet("color:#7bd88f;")
+
+    def _ativar(self):
+        try:
+            e = self.lc.ativar(self.serial.toPlainText())
+        except self.lc.ErroSerial as ex:
+            self.msg.setText(str(ex)); self.msg.setStyleSheet("color:#ff6a62;")
+            return
+        self.atualizar()
+        self.msg.setText("Ativado! Obrigado por usar o WMusic Steams."); self.msg.setStyleSheet("color:#7bd88f;")
+        self.serial.clear()
+        if self.parent() and hasattr(self.parent(), "atualizar_licenca"):
+            self.parent().atualizar_licenca()
+
+    def _comprar(self):
+        from urllib.parse import quote
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtCore import QUrl
+        txt = ("Olá! Quero comprar o WMusic Steams. O código do meu computador é "
+               f"{self.codigo.text()} ({'Mac' if sys.platform == 'darwin' else 'Windows'}).")
+        QDesktopServices.openUrl(QUrl(f"https://wa.me/{ZAP}?text={quote(txt)}"))
+
+    def _remover(self):
+        if QMessageBox.question(self, "Remover licença",
+                                "Tirar a licença deste computador? Você pode ativar de novo com o mesmo serial.") \
+                == QMessageBox.Yes:
+            self.lc.remover(); self.atualizar()
+            if self.parent() and hasattr(self.parent(), "atualizar_licenca"):
+                self.parent().atualizar_licenca()
+
+
 # ===================================================================== processamento
 
 class Trabalho(QThread):
@@ -970,6 +1055,9 @@ class Janela(QMainWindow):
         self.b_remoto.clicked.connect(self.abrir_remoto)
         self.b_exp = Botao("Exportar", "exportar", tam_fonte=16, peso=QFont.Medium); self.b_exp.clicked.connect(self.exportar)
         self.b_exp.setEnabled(False)
+        self.b_lic = Botao("", "chave", tam_fonte=13, peso=QFont.Medium, ligado="ambar")
+        self.b_lic.clicked.connect(lambda: self.abrir_licenca())
+        self.cab.lay.addWidget(self.b_lic); self.cab.lay.addSpacing(6)
         for b in (b_nova, b_bib, self.b_remoto, self.b_exp):
             b.setMinimumHeight(50); self.cab.lay.addWidget(b)
         raiz.addWidget(self.cab)
@@ -1036,8 +1124,23 @@ class Janela(QMainWindow):
         self.relogio_timer = QTimer(self); self.relogio_timer.timeout.connect(self.tique); self.relogio_timer.start(33)
         self.setAcceptDrops(True)
         self._modo_vazio(True)
+        self.atualizar_licenca()
         if pj.ler_config().get("remoto_ligado"):
             QTimer.singleShot(300, lambda: self.iniciar_remoto(avisar=False))
+
+    def atualizar_licenca(self):
+        from . import licenca as lc
+        e = lc.estado()
+        self.b_lic.setText(lc.texto_curto(e))
+        self.b_lic.setToolTip(lc.texto_estado(e) + "  ·  clique para ver a licença")
+        self.b_lic.tipo = "vermelho" if (e["tipo"] == "teste" and not e["restantes"]) else "metal"
+        self.b_lic.setMinimumHeight(40); self.b_lic.updateGeometry(); self.b_lic.update()
+        t = "WMusic Steams" + ("  ·  BETA" if e["tipo"] == "beta" else "")
+        self.setWindowTitle(t)
+
+    def abrir_licenca(self, motivo: str = ""):
+        DialogoLicenca(self, motivo).exec()
+        self.atualizar_licenca()
 
     def _master(self, v):
         db = -60 + v / 0.82 * 60 if v <= 0.82 else (v - 0.82) / 0.18 * 6
@@ -1076,6 +1179,12 @@ class Janela(QMainWindow):
                 "Áudio e vídeo (*.mp3 *.wav *.flac *.m4a *.aac *.ogg *.mp4 *.mov *.mkv *.aif *.aiff);;Todos (*)")
         if not arquivo:
             return
+        from . import licenca as lc
+        pode, motivo = lc.pode_separar()
+        if not pode:
+            self.abrir_licenca(motivo)
+            if not lc.pode_separar()[0]:
+                return
         d = DialogoNova(self, arquivo)
         if d.exec() != QDialog.Accepted:
             return
@@ -1090,6 +1199,7 @@ class Janela(QMainWindow):
 
     def _pronto(self, projeto):
         self.prog.close(); self.trabalho = None
+        self.atualizar_licenca()
         self.abrir_projeto(projeto)
         if projeto.get("aviso_letra"):
             QMessageBox.information(self, "Letra", projeto["aviso_letra"])

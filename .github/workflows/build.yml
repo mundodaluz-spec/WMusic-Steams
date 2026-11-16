@@ -67,6 +67,7 @@ jobs:
           python tests/test_smpte.py
           python tests/test_remoto.py
           python tests/test_sem_console.py
+          python tests/test_licenca.py
       - name: Compilar
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then ICO=assets/icone.ico; SEP=";"; else ICO=assets/icone.icns; SEP=":"; fi
@@ -105,6 +106,9 @@ jobs:
           grep -v PROGRESSO log_alta.txt || true
           python tests/conferir_ci.py r_alta.json
           fi
+          # licença: o app compilado mostra o código do computador e o teste grátis já gastou 2 de 3
+          "$EXE" --licenca --log lic.txt || true
+          cat lic.txt; grep -q "código do computador" lic.txt
           "$EXE" --captura "$(python -c "import json;print(json.load(open('r.json'))['pasta'])")" captura.png
       - uses: actions/upload-artifact@v4
         if: always()

@@ -216,7 +216,11 @@ def processar(
     from .separate import separar
     from .chords import detectar
     from .pad import gerar_pad
+    from . import licenca
 
+    pode, motivo = licenca.pode_separar()
+    if not pode:
+        raise PermissionError(motivo)
     p = progresso or (lambda *_: None)
     t_ini = time.time()
     p("Lendo o arquivo", 0.0)
@@ -277,6 +281,7 @@ def processar(
         "pasta": pasta,
     }
     salvar(projeto)
+    licenca.registrar_separacao()
     p("Pronto", 1.0)
     return projeto
 

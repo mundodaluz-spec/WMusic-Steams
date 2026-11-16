@@ -7,6 +7,8 @@ Uso:
                                         processa sem janela (autoteste)
   WMusic Steams --captura PROJETO IMG.png
                                         abre a janela, carrega o projeto e salva uma captura
+  WMusic Steams --licenca               mostra a licença e o código do computador
+  WMusic Steams --ativar SERIAL         ativa um serial
 """
 import argparse
 import json
@@ -35,6 +37,8 @@ def _say(txt):  # noqa: E302
 def cli(argv) -> int:
     ap = argparse.ArgumentParser(prog="wmusic-steams")
     ap.add_argument("--processar")
+    ap.add_argument("--licenca", action="store_true", help="mostra a licença e o código do computador")
+    ap.add_argument("--ativar", metavar="SERIAL")
     ap.add_argument("--saida")
     ap.add_argument("--resultado")
     ap.add_argument("--rapido", action="store_true")
@@ -66,6 +70,16 @@ def cli(argv) -> int:
         ok = j.grab().save(a.captura[1])
         _say(f"CAPTURA {'OK' if ok else 'FALHOU'} {a.captura[1]}")
         return 0 if ok else 3
+
+    if a.licenca or a.ativar:
+        from wmsteams import licenca as lc
+        if a.ativar:
+            try:
+                lc.ativar(a.ativar)
+            except lc.ErroSerial as e:
+                _say("ERRO " + str(e)); return 4
+        _say(f"{lc.texto_estado()}  ·  código do computador: {lc.codigo_computador()}")
+        return 0
 
     from wmsteams import projeto as pj
     resultado = {}

@@ -7,3 +7,5 @@ modelos/
 *.wav
 *.mp4
 *.json.tmp
+CHAVE-PRIVADA*
+vendas-wmusic-steams.csv

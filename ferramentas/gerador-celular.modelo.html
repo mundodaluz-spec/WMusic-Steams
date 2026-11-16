@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WMusic Steams · Gerador de seriais</title>
+<link rel="icon" href="data:image/png;base64,__LOGO__">
+<style>
+:root{--bg:#0b0b0b;--bg2:#181818;--tx:#F2E3CF;--mut:#9a938c;--red:#E1262C;--ok:#7bd88f;--amb:#F5C04A}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 -apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:12px 16px;background:linear-gradient(#262626,#111);border-bottom:1px solid #000;box-shadow:0 1px 0 rgba(225,38,44,.6)}
+header img{height:34px}header b{font-weight:800;letter-spacing:.3em;font-size:15px;border-left:2px solid var(--red);padding-left:10px}header small{display:block;color:var(--mut);font-size:12px;letter-spacing:0;font-weight:500}
+main{padding:14px;max-width:580px;margin:0 auto}
+.card{background:linear-gradient(#1f1f1f,#141414);border-radius:12px;padding:16px;margin-bottom:14px;border:1px solid #000;box-shadow:inset 0 1px 0 rgba(255,255,255,.1)}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:var(--red);margin:0 0 12px}
+label{display:block;color:var(--mut);font-size:14px;margin:0 0 12px}
+input,textarea,select{width:100%;background:#0b0b0b;color:var(--tx);border:1px solid #333;border-radius:8px;padding:12px;font:inherit;margin-top:5px}
+input.mono{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.15em;text-transform:uppercase;font-size:18px}
+textarea{font:13px ui-monospace,Menlo,Consolas,monospace}
+button,.bt{display:inline-block;background:linear-gradient(#363636,#1b1b1b);color:var(--tx);border:1px solid #000;border-radius:9px;padding:12px 14px;font:600 15px inherit;cursor:pointer;text-decoration:none;text-align:center}
+.pri{background:linear-gradient(#ff4a45,#d71920 45%,#8c0a10);color:#fff}
+.linha{display:flex;gap:8px;flex-wrap:wrap}.linha>*{flex:1}
+.abas{display:flex;gap:6px;margin-bottom:14px}.abas button{flex:1}.abas button.on{background:linear-gradient(#ff4a45,#d71920 45%,#8c0a10);color:#fff}
+.serial{font:13px ui-monospace,Menlo,Consolas,monospace;word-break:break-all;background:#000;padding:10px;border-radius:8px;border:1px dashed #444;margin:10px 0}
+.msg{min-height:20px;font-size:14px;color:var(--mut);margin-top:8px}.ok{color:var(--ok)}.err{color:#ff6b6b}
+table{width:100%;border-collapse:collapse;font-size:13.5px}td,th{padding:7px 4px;border-bottom:1px solid #2a2a2a;text-align:left;vertical-align:top}th{color:var(--mut);font-weight:500}
+small.m{color:var(--mut)}
+.tot{font-size:24px;font-weight:800}.barra{height:8px;background:#2b2b2b;border-radius:4px;overflow:hidden;margin:6px 0}.barra div{height:100%;background:var(--ok)}
+.aviso{background:#2a0606;border-radius:8px;padding:10px;font-size:14px}
+.tag{font-size:11px;padding:2px 6px;border-radius:4px;background:#3a2c08;color:var(--amb)}
+.dias{display:flex;gap:6px}.dias button{flex:1;padding:9px 4px;font-size:14px}.dias button.on{outline:2px solid var(--amb)}
+[hidden]{display:none!important}
+</style></head><body>
+<header><img alt="WMusic" src="data:image/png;base64,__LOGO__"><b>STEAMS<small>Gerador de seriais · só para o Heitor</small></b></header>
+<main>
+<section class="card" id="cfg">
+  <h2>Chave privada deste aparelho</h2>
+  <p class="msg">Cole o conteúdo do arquivo <b>CHAVE-PRIVADA-WMUSIC-STEAMS.txt</b>. Ela fica guardada <b>só neste navegador</b>; a página não manda nada para lugar nenhum.</p>
+  <textarea id="chave" rows="3" placeholder="CHAVE=…"></textarea>
+  <div class="linha" style="margin-top:8px"><button class="pri" id="btChave">Guardar chave</button></div>
+  <div class="msg" id="msgChave"></div>
+</section>
+
+<div id="app" hidden>
+<div class="abas"><button id="abaV" class="on">Venda</button><button id="abaB">Beta tester</button></div>
+
+<section class="card" id="venda">
+  <h2>Nova venda</h2>
+  <label>Nome do comprador (aparece no programa)<input id="vNome" autocomplete="off"></label>
+  <label>Código do computador (o cliente vê no programa, botão da chave)<input id="vCod" class="mono" placeholder="AB12-CD34" autocomplete="off"></label>
+  <label>WhatsApp com DDD<input id="vZap" inputmode="tel" placeholder="27 99999-9999"></label>
+  <label>Valor pago (R$)<input id="vValor" inputmode="decimal" value="197"></label>
+  <label>É o 2º computador de quem já comprou?<select id="vSeg"><option value="">Não, venda nova</option></select></label>
+  <button class="pri" id="btVenda" style="width:100%">Gerar serial e registrar</button>
+</section>
+
+<section class="card" id="beta" hidden>
+  <h2>Novo beta tester</h2>
+  <label>Nome do testador<input id="bNome" autocomplete="off"></label>
+  <label>Válido por</label>
+  <div class="dias" id="bDias"><button data-d="15">15 dias</button><button data-d="30" class="on">30 dias</button><button data-d="60">60 dias</button><button data-d="90">90 dias</button></div>
+  <label style="margin-top:12px">ou até a data<input id="bData" type="date"></label>
+  <label>Código do computador (opcional: deixa o serial preso a um computador só)<input id="bCod" class="mono" placeholder="AB12-CD34" autocomplete="off"></label>
+  <label>WhatsApp com DDD<input id="bZap" inputmode="tel" placeholder="27 99999-9999"></label>
+  <button class="pri" id="btBeta" style="width:100%">Gerar serial de beta</button>
+</section>
+
+<section class="card" id="res" hidden>
+  <h2>Serial gerado</h2>
+  <div class="serial" id="serial"></div>
+  <div class="msg ok" id="conf"></div>
+  <div class="linha"><button id="btCopS">Copiar serial</button><button id="btCopM">Copiar mensagem</button></div>
+  <div class="linha" style="margin-top:8px"><a class="bt pri" id="btZap" target="_blank" rel="noopener">Enviar no WhatsApp</a></div>
+</section>
+<div class="msg" id="msg"></div>
+
+<section class="card" id="lVendas">
+  <h2>Vendas neste aparelho</h2>
+  <div class="tot" id="tot"></div><div class="barra"><div id="barra"></div></div>
+  <div class="msg" id="mei"></div>
+  <table><thead><tr><th>Data</th><th>Cliente</th><th>R$</th><th></th></tr></thead><tbody id="tV"></tbody></table>
+  <p class="msg">O limite do MEI soma <b>todas</b> as suas vendas, não só este produto.</p>
+</section>
+<section class="card" id="lBetas" hidden>
+  <h2>Beta testers</h2>
+  <table><thead><tr><th>Nome</th><th>Até</th><th></th></tr></thead><tbody id="tB"></tbody></table>
+</section>
+<div class="linha"><button id="btCSV">Copiar planilha (CSV)</button><button id="btEsquecer">Esquecer chave</button></div>
+</div>
+</main>
+<script>/*__ED__*/</script>
+<script>/*__SERIAL__*/</script>
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)}, PUB="__PUB__", K="wmst-ger-chave", V="wmst-ger-vendas", BT="wmst-ger-betas", TETO=78000;
+var LINK="https://wmusic-steams.netlify.app";
+function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}}
+function hex(h){var o=new Uint8Array(h.length/2);for(var i=0;i<o.length;i++)o[i]=parseInt(h.substr(i*2,2),16);return o}
+function toHex(b){return Array.prototype.map.call(b,function(x){return(x<16?"0":"")+x.toString(16)}).join("")}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+var seed=null, aba="v", dias=30, ultimo=null;
+function lerChave(t){var m=String(t).match(/CHAVE\s*=\s*([0-9a-fA-F]{64})/)||String(t).match(/\b([0-9a-fA-F]{64})\b/);return m?m[1].toLowerCase():null}
+function usar(h){var s=hex(h);if(toHex(WMSTEd.publica(s))!==PUB)return false;seed=s;return true}
+function tela(){$("app").hidden=!seed;$("cfg").hidden=!!seed;if(seed){listas();trocar(aba)}}
+$("btChave").onclick=function(){var h=lerChave($("chave").value);
+ if(!h){$("msgChave").textContent="Não achei a chave (64 letras/números depois de CHAVE=).";$("msgChave").className="msg err";return}
+ if(!usar(h)){$("msgChave").textContent="Essa chave não é a do WMusic Steams.";$("msgChave").className="msg err";return}
+ ls(K,h);$("chave").value="";tela()};
+$("btEsquecer").onclick=function(){var b=this;if(!b.dataset.c){b.dataset.c=1;b.textContent="Toque de novo para esquecer";return}
+ try{localStorage.removeItem(K)}catch(e){}seed=null;b.textContent="Esquecer chave";delete b.dataset.c;tela()};
+function trocar(a){aba=a;$("abaV").className=a==="v"?"on":"";$("abaB").className=a==="b"?"on":"";
+ $("venda").hidden=a!=="v";$("beta").hidden=a!=="b";$("lVendas").hidden=a!=="v";$("lBetas").hidden=a!=="b";$("res").hidden=true;$("msg").textContent=""}
+$("abaV").onclick=function(){trocar("v")};$("abaB").onclick=function(){trocar("b")};
+Array.prototype.forEach.call($("bDias").children,function(b){b.onclick=function(){dias=+b.dataset.d;$("bData").value="";
+ Array.prototype.forEach.call($("bDias").children,function(x){x.className=x===b?"on":""})}});
+$("bData").oninput=function(){Array.prototype.forEach.call($("bDias").children,function(x){x.className=""})};
+function lista(k){try{return JSON.parse(ls(k))||[]}catch(e){return[]}}
+function brl(v){return v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}
+function dataBR(d){return("0"+d.getDate()).slice(-2)+"/"+("0"+(d.getMonth()+1)).slice(-2)+"/"+d.getFullYear()}
+function botaoApagar(td,k,id){var b=document.createElement("button");b.textContent="✕";b.style.padding="4px 9px";b.title="Apagar o registro (o serial continua valendo)";
+ b.onclick=function(){if(!b.dataset.c){b.dataset.c=1;b.textContent="apagar?";return}ls(k,JSON.stringify(lista(k).filter(function(x){return x.id+x.cod!==id})));listas()};td.appendChild(b)}
+function listas(){var vs=lista(V),ano=String(new Date().getFullYear()),t=0,n=0;$("tV").innerHTML="";
+ var sel=$("vSeg");sel.length=1;var vistos={};
+ vs.slice().reverse().forEach(function(v){if(v.data.slice(-4)===ano){t+=v.valor;n++}
+  var tr=document.createElement("tr");tr.innerHTML="<td>"+v.data.slice(0,5)+"</td><td>"+esc(v.nome)+"<br><small class='m'>"+esc(v.cod)+" · id "+v.id+(v.valor?"":" · 2º PC")+"</small></td><td>"+v.valor.toFixed(2).replace(".",",")+"</td><td></td>";
+  botaoApagar(tr.lastChild,V,v.id+v.cod);$("tV").appendChild(tr);
+  if(v.valor&&!vistos[v.id]){vistos[v.id]=1;var o=document.createElement("option");o.value=v.id;o.textContent=v.nome+" · "+v.data.slice(0,5)+" · id "+v.id;sel.appendChild(o)}});
+ $("tot").textContent=brl(t)+" em "+ano+" ("+n+(n===1?" venda)":" vendas)");
+ $("barra").style.width=Math.min(100,t/TETO*100)+"%";$("barra").style.background=t>=TETO?"#E1262C":(t>=TETO*.8?"#F5C04A":"#7bd88f");
+ $("mei").innerHTML=t>=TETO?"<div class='aviso'>⚠ Passou do seu teto de segurança de R$ 78.000 (limite do MEI: R$ 81.000).</div>":"Teto de segurança: "+brl(TETO)+" · falta "+brl(TETO-t);
+ $("tB").innerHTML="";var hoje=new Date();hoje.setHours(0,0,0,0);
+ lista(BT).slice().reverse().forEach(function(b){var ate=new Date(b.ate+"T00:00:00"),venc=ate<hoje;
+  var tr=document.createElement("tr");tr.innerHTML="<td>"+esc(b.nome)+"<br><small class='m'>"+(b.cod?esc(b.cod):"qualquer computador")+" · id "+b.id+"</small></td><td>"+dataBR(ate).slice(0,5)+(venc?" <span class='tag'>venceu</span>":"")+"</td><td></td>";
+  botaoApagar(tr.lastChild,BT,b.id+b.cod);$("tB").appendChild(tr)})}
+function erro(t){$("msg").textContent=t;$("msg").className="msg err";$("res").hidden=true}
+function zapLink(z,txt){z=String(z).replace(/\D/g,"");if(z&&z.indexOf("55")!==0)z="55"+z;$("btZap").href="https://wa.me/"+z+"?text="+encodeURIComponent(txt);$("btZap").hidden=!z}
+function mostrar(serial,texto,conf){ultimo={serial:serial,msg:texto};$("serial").textContent=serial;$("conf").textContent=conf;$("res").hidden=false}
+function msgVenda(n,cod,s){return "Olá, "+n+"! Obrigado por comprar o WMusic Steams 🎧\n\nSeu serial (feito para o computador "+cod+"):\n"+s+
+ "\n\nComo ativar: abra o WMusic Steams, clique no botão da chave no alto da tela, cole o serial inteiro e clique em Ativar.\n\nDownload e instruções: "+LINK+"\nQualquer dúvida, é só chamar aqui."}
+function msgBeta(n,ate,cod,s){return "Olá, "+n+"! Obrigado por testar o WMusic Steams 🎧\n\nSeu serial de BETA (vale até "+dataBR(ate)+(cod?", só no computador "+cod:"")+"):\n"+s+
+ "\n\nComo ativar: abra o WMusic Steams, clique no botão da chave no alto da tela, cole o serial inteiro e clique em Ativar.\n\nPor favor, não passe o programa nem o serial para ninguém. Me conte aqui tudo o que achar: música que ficou com som misturado, canal faltando, travamento, ideia nova. Isso ajuda muito!"}
+$("btVenda").onclick=function(){
+ var nome=$("vNome").value.trim(),cod=$("vCod").value.trim(),seg=$("vSeg").value,valor=Number(String($("vValor").value).replace(",","."))||0;
+ if(!nome)return erro("Escreva o nome do comprador.");
+ try{WMSTSerial.codigo(cod)}catch(e){return erro(e.message)}
+ cod=WMSTSerial.limpar(cod);cod=cod.slice(0,4)+"-"+cod.slice(4);
+ var r=WMSTSerial.montar(seed,nome,1,cod,null,seg||null);
+ var vs=lista(V);vs.push({data:dataBR(new Date()),id:r.id,nome:nome,cod:cod,zap:$("vZap").value.replace(/\D/g,""),valor:seg?0:valor,serial:r.serial});ls(V,JSON.stringify(vs));
+ var t=msgVenda(nome,cod,r.serial);mostrar(r.serial,t,"✔ Venda registrada · id "+r.id+(seg?" (2º computador, sem somar valor)":""));zapLink($("vZap").value,t);
+ $("msg").textContent="";listas()};
+$("btBeta").onclick=function(){
+ var nome=$("bNome").value.trim(),cod=$("bCod").value.trim();if(!nome)return erro("Escreva o nome do testador.");
+ var ate;if($("bData").value){ate=new Date($("bData").value+"T00:00:00")}else{ate=new Date();ate.setHours(0,0,0,0);ate.setDate(ate.getDate()+dias)}
+ var hoje=new Date();hoje.setHours(0,0,0,0);if(ate<hoje)return erro("A data de validade já passou.");
+ if(cod){try{WMSTSerial.codigo(cod)}catch(e){return erro(e.message)}cod=WMSTSerial.limpar(cod);cod=cod.slice(0,4)+"-"+cod.slice(4)}
+ var r=WMSTSerial.montar(seed,nome,2,cod||null,ate,null);
+ var y=ate.getFullYear()+"-"+("0"+(ate.getMonth()+1)).slice(-2)+"-"+("0"+ate.getDate()).slice(-2);
+ var bs=lista(BT);bs.push({data:dataBR(new Date()),id:r.id,nome:nome,cod:cod,ate:y,zap:$("bZap").value.replace(/\D/g,""),serial:r.serial});ls(BT,JSON.stringify(bs));
+ var t=msgBeta(nome,ate,cod,r.serial);mostrar(r.serial,t,"✔ Beta até "+dataBR(ate)+" · id "+r.id);zapLink($("bZap").value,t);$("msg").textContent="";listas()};
+function copiar(t,b){var o=b.textContent;function feito(){b.textContent="Copiado ✔";setTimeout(function(){b.textContent=o},1500)}
+ if(navigator.clipboard)navigator.clipboard.writeText(t).then(feito,velho);else velho();
+ function velho(){var a=document.createElement("textarea");a.value=t;document.body.appendChild(a);a.select();try{document.execCommand("copy");feito()}catch(e){b.textContent="Selecione e copie"}a.remove()}}
+$("btCopS").onclick=function(){if(ultimo)copiar(ultimo.serial,this)};
+$("btCopM").onclick=function(){if(ultimo)copiar(ultimo.msg,this)};
+$("btCSV").onclick=function(){var l=["tipo;data;id;nome;computador;whatsapp;valor;validade;serial"];
+ lista(V).forEach(function(v){l.push(["venda",v.data,v.id,v.nome,v.cod,v.zap,v.valor.toFixed(2).replace(".",","),"",v.serial].join(";"))});
+ lista(BT).forEach(function(v){l.push(["beta",v.data,v.id,v.nome,v.cod||"",v.zap,"",v.ate,v.serial].join(";"))});copiar(l.join("\n"),this)};
+var h=ls(K);if(h)usar(h);tela();
+})();
+</script></body></html>

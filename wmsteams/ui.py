@@ -262,8 +262,15 @@ class DialogoNova(DialogoWM):
         extras = QVBoxLayout(); extras.setSpacing(6)
         for c in (self.backs, self.sopros, self.pecas):
             extras.addWidget(c)
+        from .separate import acelerador
+        tipo, nome_acel = acelerador()
+        if tipo == "cpu":
+            txt_acel = ("Processando só no processador: cada canal extra deixa bem mais lento "
+                        "(a Alta completa pode levar horas numa música de 5 min).")
+        else:
+            txt_acel = f"Processando na placa de vídeo: {nome_acel}."
         nota = QLabel("Canal que a música não tiver (ex.: sem sopros) nem aparece. Os modelos extras "
-                      "são baixados na primeira vez que forem usados.")
+                      "são baixados na primeira vez que forem usados.\n" + txt_acel)
         nota.setWordWrap(True); nota.setFont(fonte(12)); nota.setStyleSheet(f"color:{CINZA};")
         extras.addWidget(nota)
         grade.addLayout(extras, 4, 1)

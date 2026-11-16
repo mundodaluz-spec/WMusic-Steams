@@ -27,7 +27,9 @@ As músicas processadas ficam na pasta **Música / WMusic Steams** e aparecem na
 
 ## Instalação
 
-- **Windows**: descompacte o zip e abra `WMusic Steams.exe`.
+- **Windows com placa NVIDIA**: use o pacote **Windows-NVIDIA** (separação muitas vezes mais rápida). Precisa do driver da NVIDIA atualizado.
+- **Windows sem NVIDIA**: use o pacote **Windows** (só processador; os canais extras deixam a separação bem mais lenta).
+- Nos dois: descompacte o zip e abra `WMusic Steams.exe`.
 - **Mac (Apple Silicon)**: abra o .dmg e arraste para Aplicativos. Na primeira vez, clique com o botão direito no app e em **Abrir** (o app ainda não é assinado pela Apple).
 
 ## Créditos (código aberto)

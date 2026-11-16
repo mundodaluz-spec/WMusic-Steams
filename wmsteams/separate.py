@@ -160,7 +160,9 @@ def _rodar(audio, taxa, pasta_modelos, modelo, qualidade, p, f0, f1, fator_tempo
     with tempfile.TemporaryDirectory(prefix="wmsteams_") as tmp:
         entrada = os.path.join(tmp, "mix.wav")
         sf.write(entrada, x44, TAXA_MODELO, subtype="FLOAT")
-        demucs = {"segment_size": "Default", "shifts": 2 if qualidade == "alta" else 1,
+        gpu = acelerador()[0] != "cpu"
+        # Sem placa de vídeo, menos repetições internas (metade do tempo, perda pequena)
+        demucs = {"segment_size": "Default", "shifts": (2 if qualidade == "alta" else 1) if gpu else 1,
                   "overlap": 0.25, "segments_enabled": True}
         sep = Separator(
             model_file_dir=pasta, output_dir=tmp, output_format="WAV",
@@ -168,7 +170,7 @@ def _rodar(audio, taxa, pasta_modelos, modelo, qualidade, p, f0, f1, fator_tempo
             sample_rate=TAXA_MODELO, demucs_params=demucs,
             # RoFormer/MDXC: sobreposição 4 na "alta" e 2 na "rápida" (8 é o padrão, lento sem placa de vídeo)
             mdxc_params={"segment_size": 256, "override_model_segment_size": False, "batch_size": 1,
-                         "overlap": 4 if qualidade == "alta" else 2, "pitch_shift": 0},
+                         "overlap": (4 if qualidade == "alta" else 2) if gpu else 2, "pitch_shift": 0},
             vr_params={"batch_size": 1, "window_size": 512, "aggression": 5, "enable_tta": False,
                        "enable_post_process": False, "post_process_threshold": 0.2, "high_end_process": False},
         )
@@ -180,7 +182,7 @@ def _rodar(audio, taxa, pasta_modelos, modelo, qualidade, p, f0, f1, fator_tempo
         sep.load_model(model_filename=modelo)
         import threading, time
         fim = threading.Event()
-        previsto = max(10.0, len(x44) / TAXA_MODELO * fator_tempo)
+        previsto = max(10.0, len(x44) / TAXA_MODELO * fator_tempo * (0.15 if gpu else 1.0))
 
         def andamento():
             t0 = time.time()
@@ -209,6 +211,26 @@ def _rodar(audio, taxa, pasta_modelos, modelo, qualidade, p, f0, f1, fator_tempo
     if atraso:
         stems44 = {k: deslocar(v, atraso) for k, v in stems44.items()}
     return {k: ajustar_tamanho(reamostrar(v, TAXA_MODELO, taxa), n) for k, v in stems44.items()}, atraso
+
+
+_ACEL = None
+
+
+def acelerador() -> tuple[str, str]:
+    """('cuda', 'NVIDIA GeForce …') | ('mps', 'Apple') | ('cpu', 'Processador')."""
+    global _ACEL
+    if _ACEL is None:
+        try:
+            import torch
+            if torch.cuda.is_available():
+                _ACEL = ("cuda", torch.cuda.get_device_name(0))
+            elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+                _ACEL = ("mps", "Apple (chip M)")
+            else:
+                _ACEL = ("cpu", "Processador")
+        except Exception:
+            _ACEL = ("cpu", "Processador")
+    return _ACEL
 
 
 def _db(v) -> float:
@@ -322,6 +344,7 @@ def separar(
     soma_final = sum(stems.values())
     rel = {
         "modelo": " + ".join(usados),
+        "processamento": " · ".join(acelerador()),
         "atraso_corrigido_amostras_44k": atrasos,
         "residuo_do_modelo_db": round(_db(residuo_antes) - ref, 1),
         "nulo_db": round(_db(audio - soma_final) - ref, 1),

@@ -9,7 +9,7 @@ if not r.get("ok"):
 else:
     if r["nulo_conferido_db"] > -90:
         erros.append(f"soma dos stems não bate com o original ({r['nulo_conferido_db']} dB)")
-    esperado = {"voz", "baixo", "outros", "pad"}
+    esperado = {"voz", "baixo", "outros"}
     tem_bateria = "bateria" in r["trilhas"] or any(k in r["trilhas"] for k in ("bumbo", "caixa", "pratos"))
     if not tem_bateria:
         erros.append("sem bateria")

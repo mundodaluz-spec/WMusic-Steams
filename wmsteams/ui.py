@@ -341,8 +341,11 @@ class DialogoNova(DialogoWM):
         grade.addWidget(RotuloIcone("idioma", "Idioma da letra"), 1, 0)
         grade.addWidget(self.idioma, 1, 1)
         grade.addWidget(self.letra, 2, 1)
-        grade.addWidget(RotuloIcone("teclado", "Timbre do pad"), 3, 0)
-        grade.addWidget(self.timbre, 3, 1)
+        if pj.PAD_ATIVO:
+            grade.addWidget(RotuloIcone("teclado", "Timbre do pad"), 3, 0)
+            grade.addWidget(self.timbre, 3, 1)
+        else:
+            self.timbre.hide()
         grade.addWidget(RotuloIcone("mais", "Canais extras"), 4, 0, Qt.AlignTop)
         extras = QVBoxLayout(); extras.setSpacing(6)
         for c in (self.backs, self.sopros, self.pecas):
@@ -964,7 +967,7 @@ class PainelAcorde(QWidget):
         self.acorde, self.prox, self.tom = "–", "", ""
         lay = QVBoxLayout(self); lay.setContentsMargins(22, 0, 20, 16); lay.setSpacing(6); lay.addStretch()
         h = QHBoxLayout()
-        lp = QLabel("Pad"); lp.setFont(fonte(16, QFont.Medium))
+        self.lp = lp = QLabel("Pad"); lp.setFont(fonte(16, QFont.Medium))
         self.timbre = QComboBox(); self.timbre.addItems(["Quente", "Brilhante", "Suave"]); self.timbre.setObjectName("vermelha")
         self.timbre.setFixedHeight(34); self.timbre.setFont(fonte(14, QFont.Medium)); self.timbre.setFixedWidth(132)
         h.addWidget(lp); h.addStretch(); h.addWidget(self.timbre)
@@ -982,6 +985,9 @@ class PainelAcorde(QWidget):
         self.modo.setFixedWidth(118); self.tom_pad.setFixedWidth(110)
         h2.addWidget(self.modo); h2.addStretch(); h2.addWidget(self.tom_pad)
         lay.addLayout(h2)
+        if not pj.PAD_ATIVO:
+            for w in (self.lp, self.timbre, self.modo, self.tom_pad):
+                w.hide()
 
     def paintEvent(self, e):
         p = QPainter(self); p.setRenderHint(QPainter.Antialiasing)

@@ -160,10 +160,17 @@ def nome_seguro(t: str) -> str:
     return t[:80] or "Música"
 
 
+# Canal de pad: desligado no programa todo (decisão do Heitor, 16/11/2026). O código
+# continua em pad.py; para voltar, é só trocar para True.
+PAD_ATIVO = False
+
+
 def carregar(pasta: str) -> dict:
     with open(os.path.join(pasta, "projeto.json"), encoding="utf-8") as f:
         p = json.load(f)
     p["pasta"] = pasta
+    if not PAD_ATIVO and "pad" in p.get("trilhas", []):
+        p["trilhas"] = [t for t in p["trilhas"] if t != "pad"]
     return p
 
 
@@ -257,9 +264,10 @@ def processar(
 
     p("Encontrando os acordes", 0.78)
     ac = detectar(stems, taxa)
-    p("Gerando o pad", 0.80)
-    pad = gerar_pad(ac["acordes"], n, taxa, timbre=timbre_pad, modo="continuo", tom=ac["tom"])
-    gravar_wav_float(os.path.join(pasta, "pad.wav"), pad, taxa)
+    if PAD_ATIVO:
+        p("Gerando o pad", 0.80)
+        pad = gerar_pad(ac["acordes"], n, taxa, timbre=timbre_pad, modo="continuo", tom=ac["tom"])
+        gravar_wav_float(os.path.join(pasta, "pad.wav"), pad, taxa)
 
     letra = {"idioma": idioma, "linhas": []}
     aviso_letra = None
@@ -275,7 +283,7 @@ def processar(
         else:
             aviso_letra = "Modelo de letra não instalado."
 
-    trilhas = list(stems.keys()) + ["pad"]
+    trilhas = list(stems.keys()) + (["pad"] if PAD_ATIVO else [])
     projeto = {
         "app": "WMusic Steams", "versao": VERSAO, "titulo": titulo,
         "arquivo_original": os.path.abspath(arquivo), "taxa": taxa, "amostras": n,

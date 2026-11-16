@@ -189,12 +189,20 @@ def listar_biblioteca() -> list[dict]:
     return out
 
 
-def regerar_pad(projeto: dict, timbre: str, volume_db: float = -16.0) -> None:
+def regerar_pad(projeto: dict, timbre: str | None = None, volume_db: float = -16.0,
+                modo: str | None = None, tom_fixo: str | None = None) -> None:
+    """Gera o pad de novo. tom_fixo: None = mantém o que está; "auto" = tom da música."""
     from .pad import gerar_pad
     taxa, n = projeto["taxa"], projeto["amostras"]
-    pad = gerar_pad(projeto["acordes"], n, taxa, timbre=timbre, volume_db=volume_db)
+    timbre = timbre or projeto.get("pad_timbre", "Quente")
+    modo = modo or projeto.get("pad_modo", "continuo")
+    tom_fixo = tom_fixo or projeto.get("pad_tom", "auto")
+    pad = gerar_pad(projeto["acordes"], n, taxa, timbre=timbre, volume_db=volume_db, modo=modo,
+                    tom=projeto.get("tom"), tom_fixo=None if tom_fixo == "auto" else tom_fixo)
     gravar_wav_float(os.path.join(projeto["pasta"], "pad.wav"), pad, taxa)
     projeto["pad_timbre"] = timbre
+    projeto["pad_modo"] = modo
+    projeto["pad_tom"] = tom_fixo
     salvar(projeto)
 
 
@@ -250,7 +258,7 @@ def processar(
     p("Encontrando os acordes", 0.78)
     ac = detectar(stems, taxa)
     p("Gerando o pad", 0.80)
-    pad = gerar_pad(ac["acordes"], n, taxa, timbre=timbre_pad)
+    pad = gerar_pad(ac["acordes"], n, taxa, timbre=timbre_pad, modo="continuo", tom=ac["tom"])
     gravar_wav_float(os.path.join(pasta, "pad.wav"), pad, taxa)
 
     letra = {"idioma": idioma, "linhas": []}
@@ -273,7 +281,7 @@ def processar(
         "arquivo_original": os.path.abspath(arquivo), "taxa": taxa, "amostras": n,
         "duracao": n / taxa, "criado": time.time(), "info": info,
         "trilhas": trilhas, "acordes": ac["acordes"], "tom": ac["tom"],
-        "letra": letra, "pad_timbre": timbre_pad, "relatorio": rel,
+        "letra": letra, "pad_timbre": timbre_pad, "pad_modo": "continuo", "pad_tom": "auto", "relatorio": rel,
         "segundos_processamento": round(time.time() - t_ini, 1),
         "aviso_letra": aviso_letra,
         "mixer": {},

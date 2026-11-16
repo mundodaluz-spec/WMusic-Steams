@@ -962,13 +962,26 @@ class PainelAcorde(QWidget):
         self.setFixedWidth(276)
         self.vazio = True
         self.acorde, self.prox, self.tom = "–", "", ""
-        lay = QVBoxLayout(self); lay.setContentsMargins(26, 0, 22, 22); lay.addStretch()
+        lay = QVBoxLayout(self); lay.setContentsMargins(22, 0, 20, 16); lay.setSpacing(6); lay.addStretch()
         h = QHBoxLayout()
         lp = QLabel("Pad"); lp.setFont(fonte(16, QFont.Medium))
         self.timbre = QComboBox(); self.timbre.addItems(["Quente", "Brilhante", "Suave"]); self.timbre.setObjectName("vermelha")
-        self.timbre.setMinimumHeight(38); self.timbre.setFont(fonte(16, QFont.Medium)); self.timbre.setFixedWidth(132)
+        self.timbre.setFixedHeight(34); self.timbre.setFont(fonte(14, QFont.Medium)); self.timbre.setFixedWidth(132)
         h.addWidget(lp); h.addStretch(); h.addWidget(self.timbre)
         lay.addLayout(h)
+        h2 = QHBoxLayout(); h2.setSpacing(6)
+        self.modo = QComboBox(); self.modo.addItems(["Contínuo", "Acordes"])
+        self.modo.setToolTip("Contínuo: pad parado no tom da música (só muda se a música mudar de tom).\n"
+                             "Acordes: o pad segue cada acorde.")
+        self.tom_pad = QComboBox(); self.tom_pad.addItem("Auto")
+        self.tom_pad.addItems(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"])
+        self.tom_pad.setToolTip("Tom do pad contínuo. \"Auto\" usa o tom encontrado na música.")
+        for c in (self.modo, self.tom_pad):
+            c.setObjectName("vermelha"); c.setFixedHeight(34); c.setFont(fonte(13, QFont.Medium))
+            c.setStyleSheet("QComboBox { padding: 4px 22px 4px 9px; } QComboBox::drop-down { width: 20px; }")
+        self.modo.setFixedWidth(118); self.tom_pad.setFixedWidth(110)
+        h2.addWidget(self.modo); h2.addStretch(); h2.addWidget(self.tom_pad)
+        lay.addLayout(h2)
 
     def paintEvent(self, e):
         p = QPainter(self); p.setRenderHint(QPainter.Antialiasing)
@@ -984,12 +997,12 @@ class PainelAcorde(QWidget):
             p.setPen(Qt.NoPen); p.setBrush(QColor(VERMELHO)); p.drawRect(QRectF(x, r.top() + 90, 30, 7))
             p.setPen(QPen(QColor(255, 255, 255, 30), 1)); p.drawLine(QPointF(x, r.bottom() - 80), QPointF(r.right() - 20, r.bottom() - 80))
             return
-        p.setFont(fonte(62, QFont.Black))
-        sk.texto_brilho(p, QRectF(x, r.top() + 40, r.width() - 40, 74), Qt.AlignLeft | Qt.AlignVCenter, self.acorde, "#ff2b30", 120)
-        p.setFont(fonte(20)); p.setPen(QColor("#d8cfc4"))
-        p.drawText(QRectF(x, r.top() + 114, 230, 30), Qt.AlignLeft | Qt.AlignVCenter, self.prox)
-        p.setFont(fonte(16)); p.setPen(QColor(CINZA))
-        p.drawText(QRectF(x, r.top() + 146, 230, 24), Qt.AlignLeft | Qt.AlignVCenter, self.tom)
+        p.setFont(fonte(17, QFont.DemiBold)); p.setPen(QColor(CINZA))
+        p.drawText(QRectF(x, r.top() + 14, r.width() - 44, 28), Qt.AlignRight | Qt.AlignVCenter, self.tom)
+        p.setFont(fonte(54, QFont.Black))
+        sk.texto_brilho(p, QRectF(x, r.top() + 38, r.width() - 40, 64), Qt.AlignLeft | Qt.AlignVCenter, self.acorde, "#ff2b30", 120)
+        p.setFont(fonte(18)); p.setPen(QColor("#d8cfc4"))
+        p.drawText(QRectF(x, r.top() + 100, 230, 26), Qt.AlignLeft | Qt.AlignVCenter, self.prox)
 
 
 class BarraTransporte(QWidget):
@@ -1070,6 +1083,8 @@ class Janela(QMainWindow):
         self.p_acorde = PainelAcorde()
         self.timbre = self.p_acorde.timbre
         self.timbre.currentTextChanged.connect(self.trocar_timbre)
+        self.p_acorde.modo.currentIndexChanged.connect(lambda *_: self.trocar_timbre(None))
+        self.p_acorde.tom_pad.currentIndexChanged.connect(lambda *_: self.trocar_timbre(None))
         col.addWidget(self.p_acorde); col.addStretch()
         self.meio.addLayout(col)
         self.letra = Letra(); self.meio.addWidget(self.letra, 1)
@@ -1230,6 +1245,16 @@ class Janela(QMainWindow):
                          f'soma dos stems = original ({r.get("nulo_db", "?")} dB)'.replace("-", "−"))
         self.p_acorde.tom = f'Tom: {projeto.get("tom", "?")}'
         self.timbre.blockSignals(True); self.timbre.setCurrentText(projeto.get("pad_timbre", "Quente")); self.timbre.blockSignals(False)
+        pa = self.p_acorde
+        for c in (pa.modo, pa.tom_pad):
+            c.blockSignals(True)
+        pa.modo.setCurrentIndex(1 if projeto.get("pad_modo") == "acordes" else 0)
+        tp = projeto.get("pad_tom", "auto")
+        pa.tom_pad.setItemText(0, f'Auto ({projeto.get("tom", "?").rstrip("m")})')
+        pa.tom_pad.setCurrentIndex(0 if tp == "auto" else max(0, pa.tom_pad.findText(tp)))
+        pa.tom_pad.setEnabled(pa.modo.currentIndex() == 0)
+        for c in (pa.modo, pa.tom_pad):
+            c.blockSignals(False)
         self.letra.definir(projeto.get("letra"), projeto.get("aviso_letra"))
         for f in self.faixas:
             f.setParent(None); f.deleteLater()
@@ -1362,18 +1387,24 @@ class Janela(QMainWindow):
     def trocar_timbre(self, timbre):
         if not self.projeto:
             return
+        QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             tocando = self.motor.tocando
             pos = self.motor.segundos
             self.salvar_mixer()
             self.motor.descarregar()
-            pj.regerar_pad(self.projeto, timbre)
+            pa = self.p_acorde
+            modo = "acordes" if pa.modo.currentIndex() == 1 else "continuo"
+            tom = "auto" if pa.tom_pad.currentIndex() == 0 else pa.tom_pad.currentText()
+            pj.regerar_pad(self.projeto, self.timbre.currentText(), modo=modo, tom_fixo=tom)
             self.abrir_projeto(self.projeto)
             self.motor.ir_para(pos)
             if tocando:
                 self.motor.tocar()
         except Exception as e:
             QMessageBox.critical(self, "Pad", str(e))
+        finally:
+            QApplication.restoreOverrideCursor()
 
     def tique(self):
         m = self.motor
